@@ -1,0 +1,178 @@
+*mewrw.txt*  A modern asynchronous file browser and remote transfer plugin
+
+Author:  hdoi <https://github.com/hdoi/mewrw>
+License: MIT
+
+==============================================================================
+CONTENTS                                                      *mewrw-contents*
+
+1. Introduction ................................ |mewrw-introduction|
+2. Installation ................................ |mewrw-installation|
+3. Commands .................................... |mewrw-commands|
+4. Configuration ............................... |mewrw-configuration|
+5. Key Mappings ................................ |mewrw-mappings|
+6. View Modes .................................. |mewrw-views|
+7. Git Integration ............................. |mewrw-git|
+8. Icons ....................................... |mewrw-icons|
+9. Marks & Operations .......................... |mewrw-marks|
+10. Bookmarks .................................. |mewrw-bookmarks|
+11. Requirements ............................... |mewrw-requirements|
+
+==============================================================================
+1. Introduction                                         *mewrw-introduction*
+
+mewrw is a modern, asynchronous file browser and remote file transfer plugin
+for Neovim. It is designed to be a powerful, responsive, and extensible
+replacement for the built-in `netrw`.
+
+Key features include:
+- Fully asynchronous I/O using Libuv (vim.loop) and jobs.
+- Unified interface for local FS, SFTP, and archives (.zip, .tar).
+- Virtual text rendering for icons and git status (no copy interference).
+- Directory propagation: folder shows modified status if contents changed.
+- Global mark management across multiple windows and directories.
+
+==============================================================================
+2. Installation                                         *mewrw-installation*
+
+Using lazy.nvim (recommended):
+>
+    {
+        "hdoi/mewrw",
+        config = function()
+            require("mewrw").setup({
+                icons = "emoji",
+                git_integration = true,
+            })
+        end
+    }
+<
+==============================================================================
+3. Commands                                             *mewrw-commands*
+
+:Mewrw [uri]                                            *:Mewrw*
+    Open the mewrw file explorer in the current window.
+
+:MewrwV [uri]                                           *:MewrwV*
+    Open the mewrw file explorer in a vertical split.
+
+:MewrwH [uri]                                           *:MewrwH*
+    Open the mewrw file explorer in a horizontal split.
+
+:MewrwT [uri]                                           *:MewrwT*
+    Open the mewrw file explorer in a new tab.
+
+    Supported URI schemes:
+    - file:/// (or local path)
+    - sftp://user@host/path
+    - zip:///path/to/archive.zip
+    - tar:///path/to/backup.tar
+
+==============================================================================
+4. Configuration                                        *mewrw-configuration*
+
+Settings can be customized via `require("mewrw").setup()`.
+
+default_view_mode       "list", "detailed", or "tree" (default: "list")
+show_hidden             Show dotfiles (default: false)
+sort_by                 Sort criteria (default: "name")
+                        Values: "name", "numerical", "size", "mtime", "extension"
+sort_reverse            Toggle sort order (default: false)
+icons                   Icon mode (default: "none")
+                        Values: "none", "emoji", "devicons"
+git_integration         Enable Git info (default: false)
+
+Example:
+>
+    require("mewrw").setup({
+        icons = "emoji",
+        git_integration = true,
+        default_view_mode = "tree",
+    })
+<
+==============================================================================
+5. Key Mappings                                         *mewrw-mappings*
+
+Common Mappings (in mewrw buffer):
+
+<CR>            Open file or enter directory.
+- or <BS>       Go to parent directory.
+R               Refresh current view.
+x               Open file using OS default application (xdg-open, open, etc).
+i               Cycle View Mode (List -> Detailed -> Tree).
+a               Toggle hidden files.
+A               Toggle full path display.
+s               Cycle Sort Criteria.
+S               Toggle Sort Order.
+?               Open live filter input.
+u               Show interactive help popup.
+
+==============================================================================
+6. View Modes                                           *mewrw-views*
+
+mewrw supports three view modes, switchable via the `i` key:
+
+List:           A simple, clean list of filenames.
+Detailed:       Shows file size (human-readable) and modification time.
+Tree:           A visual hierarchical view.
+
+In Tree View, the following specific mappings are available:
+C               Collapse all expanded subdirectories.
+E               Recursively expand all subdirectories.
+
+==============================================================================
+7. Git Integration                                      *mewrw-git*
+
+When `git_integration` is enabled, mewrw provides the following:
+
+- Current branch name displayed in the header.
+- Status indicators (e.g., [M], [A], [?]) at the end of each line.
+- Indicators are rendered as virtual text and won't be copied.
+- Directory propagation: folders show status if their contents are modified.
+
+==============================================================================
+8. Icons                                                *mewrw-icons*
+
+mewrw supports three icon modes:
+
+none            No icons displayed.
+emoji           Uses built-in emoji symbols (no special fonts required).
+devicons        Uses nvim-web-devicons (requires a Nerd Font).
+
+Icons are rendered as virtual text and won't be copied.
+
+==============================================================================
+9. Marks & Operations                                   *mewrw-marks*
+
+mewrw uses a global marking system. Marks are shared across all windows.
+
+mf              Toggle mark on current line.
+ma              Show all marked items in a popup.
+mt              Clear all marks.
+TT              Set current directory as Global Target.
+Tc              Copy marked items to Global Target.
+Tm              Move marked items to Global Target.
+mr              Batch Rename marked items.
+D               Delete marked items or item under cursor.
+r               Rename item under cursor.
+d               Create a new directory.
+
+==============================================================================
+10. Bookmarks                                           *mewrw-bookmarks*
+
+mewrw provides a persistent bookmark system.
+
+m               Add current directory to bookmarks.
+b               List and open saved bookmarks.
+B               Remove a bookmark.
+
+==============================================================================
+11. Requirements                                        *mewrw-requirements*
+
+- Neovim 0.8+
+- sftp command (for SFTP)
+- zip, unzip, tar commands (for Archives)
+- nvim-web-devicons (optional, for devicons mode)
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
