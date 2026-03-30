@@ -97,17 +97,17 @@ function M.open(uri, direction)
 
 		uri = uri or (M.get_state() and M.get_state().uri) or vim.fn.getcwd()
 		if not uri:match("^%a+://") then
-			uri = vim.fn.fnamemodify(uri, ":p"):gsub("//+", "/")
-			if uri ~= "/" then
-				uri = uri:gsub("/$", "")
-			end
+			-- Trim before and after resolution
+			uri = uri:gsub("^%s*(.-)%s*$", "%1")
+			uri = vim.fn.fnamemodify(uri, ":p"):gsub("\\", "/")
+			-- Aggressively remove trailing / and /. and trailing spaces
+			uri = uri:gsub("[\\/]%.?%s*$", "")
+			if uri == "" then uri = "/" end
 		else
 			local scheme, rest = uri:match("^([^:]+://)(.*)$")
 			if scheme and rest then
-				rest = rest:gsub("//+", "/")
-				if rest ~= "/" then
-					rest = rest:gsub("/$", "")
-				end
+				rest = rest:gsub("\\", "/"):gsub("[\\/]%.?%s*$", "")
+				if rest == "" then rest = "/" end
 				uri = scheme .. rest
 			end
 		end

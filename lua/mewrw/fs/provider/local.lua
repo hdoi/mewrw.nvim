@@ -19,14 +19,15 @@ end
 --- Get absolute filesystem path from URI
 local function get_path(uri)
 	local path = uri:gsub("^file://", "")
+	-- Trim before and after resolution
+	path = path:gsub("^%s*(.-)%s*$", "%1")
 	if is_windows and path:match("^/[%a]:") then
 		path = path:sub(2)
 	end
-	path = vim.fn.fnamemodify(path, ":p")
-	if path ~= "/" and not (is_windows and path:match("^%a:[\\/]?$")) then
-		path = path:gsub("[\\/]$", "")
-	end
-    -- print("LocalProvider get_path: '" .. uri .. "' -> '" .. path .. "'")
+	path = vim.fn.fnamemodify(path, ":p"):gsub("\\", "/")
+	-- Aggressively remove trailing / and /. and spaces
+	path = path:gsub("[\\/]%.?%s*$", "")
+	if path == "" then path = is_windows and "C:/" or "/" end
 	return path
 end
 

@@ -1,18 +1,19 @@
 local tests = {
-	"tests/test_local_provider.lua",
-	"tests/test_fs_manager.lua",
-	"tests/test_ui_render.lua",
-	"tests/test_navigation.lua",
-	"tests/test_file_ops.lua",
-	"tests/test_config.lua",
-	"tests/test_sort_natural.lua",
-	"tests/test_sort_extension.lua",
-	"tests/test_sort_reverse.lua",
-	"tests/test_filter.lua",
 	"tests/test_archive.lua",
 	"tests/test_bookmarks.lua",
-	"tests/test_tree_view.lua",
+	"tests/test_config.lua",
+	"tests/test_file_ops.lua",
+	"tests/test_filter.lua",
+	"tests/test_fs_manager.lua",
+	"tests/test_local_provider.lua",
 	"tests/test_marks.lua",
+	"tests/test_navigation.lua",
+	"tests/test_path_normalization.lua",
+	"tests/test_sort_extension.lua",
+	"tests/test_sort_natural.lua",
+	"tests/test_sort_reverse.lua",
+	"tests/test_tree_view.lua",
+	"tests/test_ui_render.lua",
 }
 
 print("========================================")
@@ -26,15 +27,15 @@ local failed_tests = {}
 for _, test_file in ipairs(tests) do
 	print("Running: " .. test_file)
 	print("----------------------------------------")
-	
+
 	-- Neovim をサブプロセスで実行してテストを実行
 	local cmd = string.format("~/bin/nvim-linux-x86_64.appimage --headless -c 'luafile %s' -c 'qa!' 2>&1", test_file)
 	local handle = io.popen(cmd)
 	local output = handle:read("*a")
 	handle:close()
-	
+
 	print(output)
-	
+
 	if output:find("FAILURE") or output:find("Error detected") or output:find("stack traceback") then
 		fail_count = fail_count + 1
 		table.insert(failed_tests, test_file)
