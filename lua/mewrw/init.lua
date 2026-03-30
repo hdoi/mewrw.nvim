@@ -23,7 +23,6 @@ M.config = {
 --- Initialize the plugin with user configuration
 ---@param opts? MewrwConfig
 function M.setup(opts)
-	M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 end
 
 --- Open the file explorer

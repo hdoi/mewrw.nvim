@@ -1,42 +1,57 @@
 local uv = vim.loop
 
+local path_utils = require("mewrw.utils.path")
+
 ---@type Provider
 local LocalProvider = {
 	name = "local",
 }
 
-local is_windows = vim.fn.has("win32") == 1
-local sep = is_windows and "\\" or "/"
-
 --- Join path components
 local function join_path(base, name)
-	if base == "/" or (is_windows and base:match("^%a:[\\/]?$")) then
-		return base:gsub("[\\/]$", "") .. sep .. name
-	end
-	return base:gsub("[\\/]$", "") .. sep .. name
+	return path_utils.join(base, name)
 end
 
 --- Get absolute filesystem path from URI
 local function get_path(uri)
 	local path = uri:gsub("^file://", "")
-	-- Trim before and after resolution
-	path = path:gsub("^%s*(.-)%s*$", "%1")
-	if is_windows and path:match("^/[%a]:") then
-		path = path:sub(2)
-	end
-	path = vim.fn.fnamemodify(path, ":p"):gsub("\\", "/")
-	-- Aggressively remove trailing / and /. and spaces
-	path = path:gsub("[\\/]%.?%s*$", "")
-	if path == "" then path = is_windows and "C:/" or "/" end
-	return path
+	return path_utils.normalize(path)
 end
 
 function LocalProvider.can_handle(uri)
+	-- Only handle local paths (no scheme) or explicit file://
 	return not uri:match("^%a+://") or uri:match("^file://")
 end
 
 function LocalProvider.list(uri, cb)
 	local path = get_path(uri)
+
+	-- Windows virtual root: list drives
+	if path_utils.is_windows and path == "/" then
+		local stdout = {}
+		vim.fn.jobstart({ "powershell.exe", "-NoProfile", "-Command", "[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | Select-Object -ExpandProperty Name" }, {
+			stdout_buffered = true,
+			on_stdout = function(_, d) stdout = d end,
+			on_exit = function(_, c)
+				if c ~= 0 then return cb("Failed to list drives") end
+				local entries = {}
+				for _, line in ipairs(stdout) do
+					-- Just look for any sequence of [Letter]: in the line
+					local drive = line:match("(%a:)")
+					if drive then
+						table.insert(entries, {
+							name = drive .. "/",
+							path = drive .. "/",
+							type = "directory",
+						})
+					end
+				end
+				cb(nil, entries)
+			end
+		})
+		return
+	end
+
 	uv.fs_scandir(path, function(err, iter)
 		if err then return cb(err) end
 
@@ -96,8 +111,10 @@ function LocalProvider.delete(uri, recursive, cb)
 		if stat.type == "directory" then
 			if recursive then
 				vim.schedule(function()
-					local cmd = is_windows and { "cmd.exe", "/c", "rmdir", "/s", "/q", path } or { "rm", "-rf", path }
-					vim.fn.jobstart(cmd, { on_exit = function(_, c) cb(c == 0 and nil or "Delete failed") end })
+					local cmd = path_utils.is_windows 
+						and { "cmd.exe", "/c", "rmdir", "/s", "/q", path:gsub("/", "\\") } 
+						or { "rm", "-rf", path }
+					vim.fn.jobstart(cmd, { on_exit = function(_, c) if c == 0 then cb(nil) else cb("Delete failed") end end })
 				end)
 			else
 				uv.fs_rmdir(path, cb)
@@ -118,8 +135,10 @@ function LocalProvider.copy(src_uri, dest_uri, cb)
 		if err then return cb(err) end
 		if stat.type == "directory" then
 			vim.schedule(function()
-				local cmd = is_windows and { "xcopy", "/e", "/i", "/y", src, dest } or { "cp", "-r", src, dest }
-				vim.fn.jobstart(cmd, { on_exit = function(_, c) cb(c == 0 and nil or "Copy failed") end })
+				local cmd = path_utils.is_windows 
+					and { "cmd.exe", "/c", "xcopy", "/e", "/i", "/y", src:gsub("/", "\\"), dest:gsub("/", "\\") } 
+					or { "cp", "-r", src, dest }
+				vim.fn.jobstart(cmd, { on_exit = function(_, c) if c == 0 then cb(nil) else cb("Copy failed") end end })
 			end)
 		else
 			uv.fs_copyfile(src, dest, nil, cb)

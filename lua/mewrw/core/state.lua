@@ -1,29 +1,4 @@
----@alias SortBy "name"|"numerical"|"size"|"mtime"|"extension"
----@alias ViewMode "list"|"detailed"|"tree"
----@alias EntryType "file"|"directory"|"link"|"other"
-
----@class Entry
----@field name string The display name of the file or directory
----@field path string The full URI or path of the entry
----@field type EntryType The type of the entry
----@field size number? File size in bytes
----@field mtime number? Last modification time (unix timestamp)
----@field depth number? Nesting level for tree view
-
----@class State
----@field bufnr number The buffer number this state belongs to
----@field uri string The current directory URI
----@field entries Entry[] Raw entries fetched from the provider
----@field filtered_entries Entry[] Processed entries for rendering
----@field show_hidden boolean Toggle for hidden files
----@field show_full_path boolean Toggle for full path display
----@field filter string Current filtering pattern (case-insensitive)
----@field sort_by SortBy Current sort criteria
----@field sort_reverse boolean reverse sort flag
----@field view_mode ViewMode Current display mode
----@field expanded_nodes table<string, Entry[]> Cache for tree nodes
----@field git_branch string? Current git branch
----@field git_status table<string, string>? Git status for files
+local path_utils = require("mewrw.utils.path")
 local State = {}
 State.__index = State
 
@@ -35,129 +10,96 @@ local function natural_compare(a, b)
 	local function tokenize(str)
 		local tokens = {}
 		for text, number in str:gmatch("(.-)(%d*)") do
-			if text ~= "" then
-				table.insert(tokens, text:lower())
-			end
-			if number ~= "" then
-				table.insert(tokens, tonumber(number))
-			end
+			if text ~= "" then table.insert(tokens, text:lower()) end
+			if number ~= "" then table.insert(tokens, tonumber(number)) end
 		end
 		return tokens
 	end
 	local ta, tb = tokenize(a), tokenize(b)
 	for i = 1, math.max(#ta, #tb) do
-		if not ta[i] then
-			return true
-		end
-		if not tb[i] then
-			return false
-		end
-		if type(ta[i]) ~= type(tb[i]) then
-			return tostring(ta[i]) < tostring(tb[i])
-		end
-		if ta[i] ~= tb[i] then
-			return ta[i] < tb[i]
-		end
+		if not ta[i] then return true end
+		if not tb[i] then return false end
+		if type(ta[i]) ~= type(tb[i]) then return tostring(ta[i]) < tostring(tb[i]) end
+		if ta[i] ~= tb[i] then return ta[i] < tb[i] end
 	end
 	return false
 end
 
-function State.new(bufnr)
+function State.new(bufnr, opts)
+	local global_config = require("mewrw").config
+	opts = opts or {}
 	local self = setmetatable({}, State)
 	self.bufnr = bufnr
 	self.uri = ""
 	self.entries = {}
 	self.filtered_entries = {}
-	self.show_hidden = false
-	self.show_full_path = false
-	self.filter = ""
-	self.sort_by = "name"
-	self.sort_reverse = false
-	self.view_mode = "list"
-	self.expanded_nodes = {}
+	
+	self.show_hidden = (opts.show_hidden ~= nil) and opts.show_hidden or global_config.show_hidden
+	self.show_full_path = (opts.show_full_path ~= nil) and opts.show_full_path or false
+	self.filter = opts.filter or ""
+	self.sort_by = opts.sort_by or global_config.sort_by
+	self.sort_reverse = (opts.sort_reverse ~= nil) and opts.sort_reverse or global_config.sort_reverse
+	self.view_mode = opts.view_mode or global_config.default_view_mode
+	self.expanded_nodes = opts.expanded_nodes or {}
+	
 	self.git_branch = nil
 	self.git_status = nil
 	return self
 end
 
+local comparators = {
+	size = function(a, b) return (a.size or 0) < (b.size or 0) end,
+	mtime = function(a, b) return (a.mtime or 0) < (b.mtime or 0) end,
+	extension = function(a, b) return get_extension(a.name):lower() < get_extension(b.name):lower() end,
+	numerical = function(a, b) return natural_compare(a.name, b.name) end,
+	name = function(a, b) return a.name:lower() < b.name:lower() end,
+}
+
 function State:sort_entries(entries)
-	local res = {}
-	for i = 1, #entries do
-		res[i] = entries[i]
-	end
+	local res = { unpack(entries) }
+	local cmp = comparators[self.sort_by] or comparators.name
 
 	table.sort(res, function(a, b)
-		if a.type == "directory" and b.type ~= "directory" then
-			return true
-		end
-		if a.type ~= "directory" and b.type == "directory" then
-			return false
+		-- 1. Directories always first
+		if a.type == "directory" and b.type ~= "directory" then return true end
+		if a.type ~= "directory" and b.type == "directory" then return false end
+
+		-- 2. Primary comparison
+		local is_less = cmp(a, b)
+		local is_more = cmp(b, a)
+
+		if not is_less and not is_more then
+			-- Items are equal by primary criteria, fallback to name for stability
+			if a.name:lower() == b.name:lower() then return false end
+			return a.name:lower() < b.name:lower()
 		end
 
-		local function compare_vals(v1, v2)
-			if v1 == v2 then
-				return nil
-			end
-			if self.sort_reverse then
-				return v1 > v2
-			else
-				return v1 < v2
-			end
+		if self.sort_reverse then
+			return is_more
 		end
-
-		local outcome
-		if self.sort_by == "size" then
-			outcome = compare_vals(a.size or 0, b.size or 0)
-		elseif self.sort_by == "mtime" then
-			outcome = compare_vals(a.mtime or 0, b.mtime or 0)
-		elseif self.sort_by == "numerical" then
-			if a.name ~= b.name then
-				local is_less = natural_compare(a.name, b.name)
-				if self.sort_reverse then
-					outcome = not is_less
-				else
-					outcome = is_less
-				end
-			end
-		elseif self.sort_by == "extension" then
-			outcome = compare_vals(get_extension(a.name):lower(), get_extension(b.name):lower())
-		end
-
-		if outcome ~= nil then
-			return outcome
-		end
-
-		local n1, n2 = a.name:lower(), b.name:lower()
-		if n1 ~= n2 then
-			if self.sort_reverse then
-				return n1 > n2
-			else
-				return n1 < n2
-			end
-		end
-		return false
+		return is_less
 	end)
 	return res
 end
 
-function State:update(uri, entries)
+function State:update(uri, entries, expanded_nodes)
 	if uri then
 		self.uri = uri
-		self.expanded_nodes = {}
+		if expanded_nodes then self.expanded_nodes = expanded_nodes end
 	end
-	if entries then
-		self.entries = entries
+	if entries then self.entries = entries end
+
+	local pattern = self.filter:lower()
+	local function filter_entry(e)
+		local match_hidden = self.show_hidden or not e.name:match("^%.")
+		local match_filter = pattern == "" or e.name:lower():find(pattern, 1, true)
+		return match_hidden and match_filter
 	end
 
 	if self.view_mode ~= "tree" then
 		local res = {}
-		local pattern = self.filter:lower()
 		for _, e in ipairs(self.entries) do
-			local match_hidden = self.show_hidden or not e.name:match("^%.")
-			local match_filter = pattern == "" or e.name:lower():find(pattern, 1, true)
-			if match_hidden and match_filter then
-				table.insert(res, e)
-			end
+			if filter_entry(e) then table.insert(res, e) end
 		end
 		self.filtered_entries = self:sort_entries(res)
 	else
@@ -165,7 +107,7 @@ function State:update(uri, entries)
 		local function add_recursive(list, depth)
 			local sorted = self:sort_entries(list)
 			for _, e in ipairs(sorted) do
-				if self.show_hidden or not e.name:match("^%.") then
+				if filter_entry(e) then
 					e.depth = depth
 					table.insert(res, e)
 					if self.expanded_nodes[e.path] then

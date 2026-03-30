@@ -1,6 +1,9 @@
 local tests = {
 	"tests/test_archive.lua",
+	"tests/test_archive_v2.lua",
+	"tests/test_batch_rename.lua",
 	"tests/test_bookmarks.lua",
+	"tests/test_bulk_ops.lua",
 	"tests/test_config.lua",
 	"tests/test_file_ops.lua",
 	"tests/test_filter.lua",
@@ -9,9 +12,12 @@ local tests = {
 	"tests/test_marks.lua",
 	"tests/test_navigation.lua",
 	"tests/test_path_normalization.lua",
+	"tests/test_path_normalization_v2.lua",
+	"tests/test_sftp.lua",
 	"tests/test_sort_extension.lua",
 	"tests/test_sort_natural.lua",
 	"tests/test_sort_reverse.lua",
+	"tests/test_target_ops.lua",
 	"tests/test_tree_view.lua",
 	"tests/test_ui_render.lua",
 }

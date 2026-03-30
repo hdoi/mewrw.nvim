@@ -10,44 +10,34 @@ function M.setup_buffer(bufnr)
 	require("mewrw.ui.maps").setup(bufnr)
 end
 
---- Format size in bytes to human readable string
----@param size number?
----@return string
-local function format_size(size)
-	if not size then return "      - " end
-	local units = { " B", "KB", "MB", "GB", "TB" }
-	local i = 1
-	while size >= 1024 and i < #units do
-		size = size / 1024
-		i = i + 1
+--- Internal formatters
+local format = {
+	size = function(size)
+		if not size then return "      - " end
+		local units = { " B", "KB", "MB", "GB", "TB" }
+		local i = 1
+		while size >= 1024 and i < #units do
+			size = size / 1024
+			i = i + 1
+		end
+		return string.format("%6.1f %s", size, units[i])
+	end,
+	time = function(time)
+		if not time then return "                " end
+		return os.date("%Y-%m-%d %H:%M", time)
 	end
-	return string.format("%6.1f %s", size, units[i])
-end
+}
 
---- Format unix timestamp to YYYY-MM-DD HH:MM
----@param time number?
----@return string
-local function format_time(time)
-	if not time then return "                " end
-	return os.date("%Y-%m-%d %H:%M", time)
-end
-
---- Get git status string for a given entry path
---- If it's a directory, checks recursively.
----@param path string
----@param is_dir boolean
----@param git_status table<string, string>|nil
----@return string? status, string? hl
+--- Get git status string and highlight group
 local function get_git_status(path, is_dir, git_status)
 	if not git_status then return nil, nil end
 	
 	local s = git_status[path]
 	if not s and is_dir then
-		-- Directory propagation: Check if any file under this path has a status
 		local prefix = path:gsub("/$", "") .. "/"
 		for p, st in pairs(git_status) do
 			if p:sub(1, #prefix) == prefix then
-				s = " M" -- Indicate modified if anything inside changed
+				s = " M"
 				break
 			end
 		end
@@ -70,81 +60,74 @@ function M.render(state)
 
 	local engine = require("mewrw.core.engine")
 	local config = require("mewrw").config
-	local icons = require("mewrw.ui.icons")
 	local marks = engine.get_global_marks()
 	local mark_count = 0
 	for _ in pairs(marks) do mark_count = mark_count + 1 end
 
-	local lines = {}
-	-- 5-line standard header
-	table.insert(lines, string.format('" Directory: %s', state.uri))
-	local branch_info = state.git_branch and (" (Git: " .. state.git_branch .. ")") or ""
-	table.insert(lines, string.format('" Target   : %s%s', engine.get_global_target() or "(none)", branch_info))
-	table.insert(lines, string.format('" Sort: %s (%s) | Hidden: %s | FullPath: %s', 
-		state.sort_by, state.sort_reverse and "desc" or "asc",
-		state.show_hidden and "on" or "off",
-		state.show_full_path and "on" or "off"))
-	table.insert(lines, string.format('" Marks: %d selected | Press u for help', mark_count))
-	table.insert(lines, "") -- Blank line (index 5)
+	-- 1. Build Header
+	local lines = {
+		string.format('" Directory: %s', state.uri),
+		string.format('" Target   : %s%s', engine.get_global_target() or "(none)", state.git_branch and (" (Git: " .. state.git_branch .. ")") or ""),
+		string.format('" Sort: %s (%s) | Hidden: %s | FullPath: %s', 
+			state.sort_by, state.sort_reverse and "desc" or "asc",
+			state.show_hidden and "on" or "off",
+			state.show_full_path and "on" or "off"),
+		string.format('" Marks: %d selected | Press u for help', mark_count),
+		""
+	}
 
 	local hls = {}
 	local virtual_texts = {}
 
-	for i, entry in ipairs(state.filtered_entries) do
-		local line = ""
+	-- 2. Build Body
+	for _, entry in ipairs(state.filtered_entries) do
 		local name = state.show_full_path and entry.path or entry.name
 		if entry.type == "directory" then name = name .. "/" end
 
-		local icon_text = ""
-		local icon_hl = nil
-		if config.icons ~= "none" then
-			icon_text, icon_hl = icons.get(entry, config.icons)
-		end
+		local line_text = ""
+		local indent = string.rep("  ", entry.depth or 0)
 
 		if state.view_mode == "detailed" then
-			line = string.format("%s  %s  %s", format_size(entry.size), format_time(entry.mtime), name)
+			line_text = string.format("%s  %s  %s", format.size(entry.size), format.time(entry.mtime), name)
 		elseif state.view_mode == "tree" then
-			local prefix = ""
-			if entry.type == "directory" then
-				prefix = state.expanded_nodes[entry.path] and "▼ " or "▶ "
-			else
-				prefix = "  "
-			end
-			line = string.rep("  ", entry.depth or 0) .. prefix .. name
+			local prefix = entry.type == "directory" and (state.expanded_nodes[entry.path] and "▼ " or "▶ ") or "  "
+			line_text = indent .. prefix .. name
 		else
-			line = name
+			line_text = name
 		end
 
-		-- Icons (Virtual Text)
-		if config.icons ~= "none" and icon_text ~= "" then
-			table.insert(virtual_texts, {
-				line = #lines,
-				text = icon_text .. " ",
-				hl = icon_hl,
-				col = state.view_mode == "tree" and (entry.depth or 0) * 2 or 0,
-				pos = "inline"
-			})
+		-- 3. Prepare Decorations (Virtual Text)
+		local current_line_idx = #lines
+		
+		-- Icons
+		if config.icons ~= "none" then
+			local icon, icon_hl = require("mewrw.ui.icons").get(entry, config.icons)
+			if icon ~= "" then
+				table.insert(virtual_texts, {
+					line = current_line_idx,
+					text = icon .. " ",
+					hl = icon_hl,
+					col = state.view_mode == "tree" and (entry.depth or 0) * 2 or 0,
+					pos = "inline"
+				})
+			end
 		end
 
-		-- Git status (Virtual Text on the right)
+		-- Git Status
 		local gs, ghl = get_git_status(entry.path, entry.type == "directory", state.git_status)
 		if gs then
-			table.insert(virtual_texts, {
-				line = #lines,
-				text = " " .. gs,
-				hl = ghl,
-				pos = "eol"
-			})
+			table.insert(virtual_texts, { line = current_line_idx, text = " " .. gs, hl = ghl, pos = "eol" })
 		end
 
-		table.insert(lines, line)
+		table.insert(lines, line_text)
 
-		-- Highlight marked items
+		-- 4. Mark Highlight
 		if marks[entry.path] then
-			table.insert(hls, { #lines - 1, "Underlined", 0, -1 })
+			table.insert(hls, { current_line_idx, "Underlined", 0, -1 })
 		end
 	end
 
+	-- 5. Apply to Buffer
 	vim.api.nvim_buf_set_option(state.bufnr, "modifiable", true)
 	vim.api.nvim_buf_set_lines(state.bufnr, 0, -1, false, lines)
 	vim.api.nvim_buf_set_option(state.bufnr, "modifiable", false)
@@ -152,7 +135,6 @@ function M.render(state)
 	local ns = vim.api.nvim_create_namespace("mewrw")
 	vim.api.nvim_buf_clear_namespace(state.bufnr, ns, 0, -1)
 
-	-- Apply virtual texts
 	for _, vt in ipairs(virtual_texts) do
 		vim.api.nvim_buf_set_extmark(state.bufnr, ns, vt.line, vt.col or 0, {
 			virt_text = { { vt.text, vt.hl or "Normal" } },

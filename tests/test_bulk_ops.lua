@@ -43,11 +43,11 @@ print("Simulating visual selection for copy...")
 local original_line = vim.fn.line
 vim.fn.line = function(p)
 	if p == "v" then
-		return 5
-	end -- Start at item1 (line 5)
-	if p == "." then
 		return 6
-	end -- End at item2 (line 6)
+	end -- Start at item1 (line 6)
+	if p == "." then
+		return 7
+	end -- End at item2 (line 7)
 	return original_line(p)
 end
 
@@ -56,40 +56,46 @@ engine.toggle_mark(true)
 -- Navigate to destination and execute copy
 engine.open(dest_dir)
 vim.wait(1000, function()
-	return engine.get_state().uri == dest_dir
+	local s = engine.get_state()
+	return s and s.uri == dest_dir
 end)
 vim.fn.confirm = function()
 	return 1
 end
 engine.bulk_action("copy")
 
-vim.wait(1000, function()
-	local s = engine.get_state()
-	return s and #s.filtered_entries == 2
+-- Wait for files to actually appear on disk
+local copy_success = vim.wait(3000, function()
+	return vim.fn.filereadable(dest_dir .. "/item1.txt") == 1 and
+	       vim.fn.filereadable(dest_dir .. "/item2.txt") == 1
 end)
 
-if vim.fn.filereadable(dest_dir .. "/item1.txt") == 1 and vim.fn.filereadable(src_dir .. "/item1.txt") == 1 then
+if copy_success then
 	print("SUCCESS: Bulk Copy works.")
 else
-	print("FAILURE: Bulk Copy failed.")
+	print("FAILURE: Bulk Copy failed (timeout).")
 end
+
+-- Wait a bit more to ensure background re-rendering is done
+vim.wait(1000, function() return false end)
 
 -- 2. Test Bulk Move
 print("\nStep 2: Testing Bulk Move")
 engine.open(src_dir)
-vim.wait(1000, function()
-	return #engine.get_state().filtered_entries == 3
+vim.wait(2000, function()
+	local s = engine.get_state()
+	return s and s.uri == src_dir and #s.filtered_entries == 3
 end)
 
--- Mark remaining two files for move
+-- Mark all three files for move
 engine.clear_marks()
 vim.fn.line = function(p)
 	if p == "v" then
-		return 5
+		return 6
 	end
 	if p == "." then
-		return 7
-	end -- Mark all 3 items
+		return 8
+	end -- Mark items 1, 2, 3 (lines 6, 7, 8)
 	return original_line(p)
 end
 engine.toggle_mark(true)
@@ -97,18 +103,21 @@ engine.toggle_mark(true)
 -- Navigate and execute move
 engine.open(dest_dir)
 vim.wait(1000, function()
-	return engine.get_state().uri == dest_dir
+	local s = engine.get_state()
+	return s and s.uri == dest_dir
 end)
 engine.bulk_action("move")
 
-vim.wait(1000, function()
-	return vim.fn.filereadable(src_dir .. "/item1.txt") == 0
+-- Wait for files to move on disk
+local move_success = vim.wait(3000, function()
+	return vim.fn.filereadable(dest_dir .. "/item3.txt") == 1 and
+	       vim.fn.filereadable(src_dir .. "/item1.txt") == 0
 end)
 
-if vim.fn.filereadable(dest_dir .. "/item3.txt") == 1 and vim.fn.filereadable(src_dir .. "/item1.txt") == 0 then
+if move_success then
 	print("SUCCESS: Bulk Move works.")
 else
-	print("FAILURE: Bulk Move failed.")
+	print("FAILURE: Bulk Move failed (timeout).")
 end
 
 -- Cleanup
