@@ -17,12 +17,25 @@ A modern, asynchronous file browser and remote file transfer plugin for Neovim, 
 - **Advanced Tree View**: Visual hierarchy with recursive expansion (`E`) and navigation.
 - **Persistent Bookmarks**: Quickly save and recall locations via a persistent selection menu.
 
-![default](./image/1_default.png)
-![detail](./image/2_detail.png)
-![tree](./image/3_tree.png)
-![with_emoji_icons](./image/6_icons.png)
-![bookmark](./image/4_bookmark.png)
-![batch_rename](./image/5_batch_rename.png)
+### screenshot
+
+**View mode**
+
+| Default  | Detail | Tree |
+| :---: | :---: |:---: |
+| ![default](./image/1_default.png)  | ![detail](./image/2_detail.png) | ![tree](./image/3_tree.png) |
+
+**Icons**
+
+| None | Emoji | Devicons | 
+| :---: | :---: | :---: |
+| ![none](./image/icons_none.png) | ![emoji](./image/icons_emoji.png) | ![devicons](./image/icons_devicons.png) |
+
+**Other Features**
+
+| Git sign | bookmark | Batch rename | 
+| :---: | :---: | :---: |
+| ![gitsign](./image/icons_icons_with_gitsign.png) | ![bookmark](./image/4_bookmark.png) | ![batch_rename](./image/5_batch_rename.png) |
 
 ## Installation
 
