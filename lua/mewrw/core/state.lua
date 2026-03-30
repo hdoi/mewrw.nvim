@@ -35,17 +35,29 @@ local function natural_compare(a, b)
 	local function tokenize(str)
 		local tokens = {}
 		for text, number in str:gmatch("(.-)(%d*)") do
-			if text ~= "" then table.insert(tokens, text:lower()) end
-			if number ~= "" then table.insert(tokens, tonumber(number)) end
+			if text ~= "" then
+				table.insert(tokens, text:lower())
+			end
+			if number ~= "" then
+				table.insert(tokens, tonumber(number))
+			end
 		end
 		return tokens
 	end
 	local ta, tb = tokenize(a), tokenize(b)
 	for i = 1, math.max(#ta, #tb) do
-		if not ta[i] then return true end
-		if not tb[i] then return false end
-		if type(ta[i]) ~= type(tb[i]) then return tostring(ta[i]) < tostring(tb[i]) end
-		if ta[i] ~= tb[i] then return ta[i] < tb[i] end
+		if not ta[i] then
+			return true
+		end
+		if not tb[i] then
+			return false
+		end
+		if type(ta[i]) ~= type(tb[i]) then
+			return tostring(ta[i]) < tostring(tb[i])
+		end
+		if ta[i] ~= tb[i] then
+			return ta[i] < tb[i]
+		end
 	end
 	return false
 end
@@ -69,14 +81,28 @@ function State.new(bufnr)
 end
 
 function State:sort_entries(entries)
-	local res = { unpack(entries) }
+	local res = {}
+	for i = 1, #entries do
+		res[i] = entries[i]
+	end
+
 	table.sort(res, function(a, b)
-		if a.type == "directory" and b.type ~= "directory" then return true end
-		if a.type ~= "directory" and b.type == "directory" then return false end
+		if a.type == "directory" and b.type ~= "directory" then
+			return true
+		end
+		if a.type ~= "directory" and b.type == "directory" then
+			return false
+		end
 
 		local function compare_vals(v1, v2)
-			if v1 == v2 then return nil end
-			if self.sort_reverse then return v1 > v2 else return v1 < v2 end
+			if v1 == v2 then
+				return nil
+			end
+			if self.sort_reverse then
+				return v1 > v2
+			else
+				return v1 < v2
+			end
 		end
 
 		local outcome
@@ -87,17 +113,27 @@ function State:sort_entries(entries)
 		elseif self.sort_by == "numerical" then
 			if a.name ~= b.name then
 				local is_less = natural_compare(a.name, b.name)
-				if self.sort_reverse then outcome = not is_less else outcome = is_less end
+				if self.sort_reverse then
+					outcome = not is_less
+				else
+					outcome = is_less
+				end
 			end
 		elseif self.sort_by == "extension" then
 			outcome = compare_vals(get_extension(a.name):lower(), get_extension(b.name):lower())
 		end
 
-		if outcome ~= nil then return outcome end
+		if outcome ~= nil then
+			return outcome
+		end
 
 		local n1, n2 = a.name:lower(), b.name:lower()
 		if n1 ~= n2 then
-			if self.sort_reverse then return n1 > n2 else return n1 < n2 end
+			if self.sort_reverse then
+				return n1 > n2
+			else
+				return n1 < n2
+			end
 		end
 		return false
 	end)
@@ -109,7 +145,9 @@ function State:update(uri, entries)
 		self.uri = uri
 		self.expanded_nodes = {}
 	end
-	if entries then self.entries = entries end
+	if entries then
+		self.entries = entries
+	end
 
 	if self.view_mode ~= "tree" then
 		local res = {}
@@ -117,7 +155,9 @@ function State:update(uri, entries)
 		for _, e in ipairs(self.entries) do
 			local match_hidden = self.show_hidden or not e.name:match("^%.")
 			local match_filter = pattern == "" or e.name:lower():find(pattern, 1, true)
-			if match_hidden and match_filter then table.insert(res, e) end
+			if match_hidden and match_filter then
+				table.insert(res, e)
+			end
 		end
 		self.filtered_entries = self:sort_entries(res)
 	else
