@@ -96,13 +96,13 @@ function M.render(state)
 			line_text = name
 		end
 
-		-- 3. Prepare Decorations (Virtual Text)
-		local current_line_idx = #lines
-		
-		-- Icons
-		if config.icons ~= "none" then
-			local icon, icon_hl = require("mewrw.ui.icons").get(entry, config.icons)
-			if icon ~= "" then
+	-- 3. Prepare Decorations (Virtual Text)
+	local current_line_idx = #lines
+	
+	-- Icons
+	if state.icons and state.icons ~= "none" then
+		local icon, icon_hl = require("mewrw.ui.icons").get(entry, state.icons)
+		if icon ~= "" then
 				table.insert(virtual_texts, {
 					line = current_line_idx,
 					text = icon .. " ",
