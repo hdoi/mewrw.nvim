@@ -1,4 +1,4 @@
--- package.path の設定
+-- Set package.path
 local root = vim.fn.getcwd()
 package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
 
@@ -28,14 +28,14 @@ vim.wait(1000, function()
 end)
 assert(bufnr, "mewrw buffer was not created")
 
--- 初回の描画を待つ
+-- Wait for initial render
 vim.wait(1000, function()
 	return #vim.api.nvim_buf_get_lines(bufnr, 0, -1, false) >= 6
 end)
 
 print("Initial list rendered.")
 
--- 2. "lua/" ディレクトリを探してカーソルを移動
+-- 2. Find "lua/" directory and move cursor
 -- Use regex that matches the name anywhere in the line to be flexible with view modes
 local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 local target_line = -1
@@ -58,11 +58,11 @@ vim.api.nvim_win_set_buf(0, bufnr)
 vim.api.nvim_win_set_cursor(0, { target_line, 0 })
 print("Moved cursor to line " .. target_line .. " (lua/)")
 
--- 3. 'l' をシミュレート (open_under_cursor)
+-- 3. Simulate 'l' (open_under_cursor)
 print("\nStep 3: Testing 'l' to enter directory")
 engine.open_under_cursor()
 
--- 次の描画を待つ
+-- Wait for next render
 local new_buf
 vim.wait(1000, function()
 	new_buf = find_mewrw_buf(bufnr)
@@ -78,7 +78,7 @@ end)
 local state = engine.get_state()
 print("New URI: " .. tostring(state and state.uri))
 
--- 4. 結果の検証
+-- 4. Verification
 if state and state.uri:gsub("[\\/]$", ""):match("/lua$") and #state.filtered_entries > 0 then
 	print("SUCCESS: Navigated to lua/ directory via 'l'.")
 else
@@ -88,7 +88,7 @@ else
 	end
 end
 
--- 5. 'h' をシミュレート (up_directory)
+-- 5. Simulate 'h' (up_directory)
 print("\nStep 5: Testing 'h' to go up")
 engine.up_directory()
 

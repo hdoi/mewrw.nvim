@@ -1,6 +1,7 @@
 local tests = {
 	"tests/test_archive.lua",
 	"tests/test_archive_v2.lua",
+	"tests/test_archive_v3.lua",
 	"tests/test_batch_rename.lua",
 	"tests/test_bookmarks.lua",
 	"tests/test_bulk_ops.lua",
@@ -34,15 +35,15 @@ for _, test_file in ipairs(tests) do
 	print("Running: " .. test_file)
 	print("----------------------------------------")
 
-	-- Neovim をサブプロセスで実行してテストを実行
-	local cmd = string.format("~/bin/nvim-linux-x86_64.appimage --headless -c 'luafile %s' -c 'qa!' 2>&1", test_file)
+	-- Run test in a subprocess using Neovim in headless mode
+	local cmd = string.format("nvim -u NONE --headless -c 'luafile %s' -c 'qa!' 2>&1", test_file)
 	local handle = io.popen(cmd)
 	local output = handle:read("*a")
 	handle:close()
 
 	print(output)
 
-	if output:find("FAILURE") or output:find("Error detected") or output:find("stack traceback") then
+	if output:find("FAILURE") or output:find("Error detected") or output:find("stack traceback") or output:find("Error in command line") then
 		fail_count = fail_count + 1
 		table.insert(failed_tests, test_file)
 		print("Result: FAILED\n")

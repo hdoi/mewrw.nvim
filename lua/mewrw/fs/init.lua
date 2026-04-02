@@ -21,12 +21,12 @@ local providers = {
 ---@param uri string
 ---@return Provider|nil
 local function get_provider(uri)
+	-- uri_parser.parse(uri) now returns the last layer of a ::: chain
 	for _, p in ipairs(providers) do
 		if p.can_handle(uri) then return p end
 	end
 	return nil
 end
-
 --- Internal helper to call provider methods with error handling
 local function call_provider(method, uri, ...)
 	local args = { ... }

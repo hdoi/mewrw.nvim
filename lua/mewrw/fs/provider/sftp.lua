@@ -1,27 +1,37 @@
+local uri_parser = require("mewrw.utils.uri")
+
 local M = {
 	name = "sftp",
 }
 
---- Parse SFTP URI
----@param uri string sftp://[user@]host[:port]/path
----@return string host_part, string path
-local function parse_uri(uri)
-	local rest = uri:gsub("^sftp://", "")
-	local host_part, path = rest:match("^([^/]+)(/.*)$")
-	return host_part or rest, path or "/"
-end
-
 function M.can_handle(uri)
-	return uri:match("^sftp://") ~= nil
+	local u = uri_parser.parse(uri)
+	return u ~= nil and u.scheme == "sftp"
 end
 
 --- Execute sftp batch commands
----@param host string
+---@param u table Parsed URI components
 ---@param commands string[]
 ---@param cb fun(err: string|nil, output: string[]|nil)
-local function run_batch(host, commands, cb)
+local function run_batch(u, commands, cb)
+	if not u or not u.host then return cb("Invalid SFTP host") end
 	local stdout, stderr = {}, {}
-	local job_id = vim.fn.jobstart({ "sftp", "-b", "-", host }, {
+	
+	-- Construct host argument correctly: [user@]host
+	local host_arg = u.host
+	if u.user then host_arg = u.user .. "@" .. u.host end
+	
+	-- Construct sftp command: handle port if present
+	local cmd = { "sftp", "-b", "-" }
+	if u.port then
+		table.insert(cmd, "-P")
+		table.insert(cmd, u.port)
+	end
+	table.insert(cmd, host_arg)
+	
+	local job_id = vim.fn.jobstart(cmd, {
+		stdout_buffered = true,
+		stderr_buffered = true,
 		on_stdout = function(_, d) for _, l in ipairs(d) do if l ~= "" then table.insert(stdout, l) end end end,
 		on_stderr = function(_, d) for _, l in ipairs(d) do if l ~= "" then table.insert(stderr, l) end end end,
 		on_exit = function(_, c)
@@ -38,19 +48,19 @@ local function run_batch(host, commands, cb)
 end
 
 function M.list(uri, cb)
-	local host, path = parse_uri(uri)
-	-- base_dir ensures path ends with / for correct joining
-	local base_dir = path:gsub("/$", "") .. "/"
-	local uri_prefix = "sftp://" .. host
+	local u = uri_parser.parse(uri)
+	if not u or not u.host then return cb("Invalid SFTP URI: " .. tostring(uri)) end
+
+	-- Ensure path ends with / for correct joining
+	local base_dir = u.path:gsub("/$", "") .. "/"
+	local uri_prefix = "sftp://" .. (u.user and (u.user .. "@") or "") .. u.host .. (u.port and (":" .. u.port) or "")
 	
-	run_batch(host, { 'ls -l "' .. path .. '"' }, function(err, output)
+	run_batch(u, { 'ls -l "' .. u.path .. '"' }, function(err, output)
 		if err then return cb(err) end
 		local entries = {}
-		for _, line in ipairs(output) do
-			-- Regex to capture: type, size, and name (the last part of the line)
+		for _, line in ipairs(output or {}) do
 			local type_char, size, full_path_str = line:match("^([db%-l])[rwx%-]+%s+[^%s]+%s+[^%s]+%s+[^%s]+%s+(%d+)%s+[^%s]+%s+[^%s]+%s+[^%s]+%s+(.*)$")
 			if full_path_str then
-				-- Remote 'ls' might return full path if given full path, extract only the tail name
 				local name = full_path_str:match("([^/]+)/?$")
 				if name and name ~= "." and name ~= ".." then
 					table.insert(entries, {
@@ -67,9 +77,10 @@ function M.list(uri, cb)
 end
 
 function M.read(uri, cb)
-	local host, remote = parse_uri(uri)
+	local u = uri_parser.parse(uri)
+	if not u or not u.host then return cb("Invalid SFTP URI") end
 	local tmp = vim.fn.tempname()
-	run_batch(host, { 'get "' .. remote .. '" "' .. tmp .. '"' }, function(err)
+	run_batch(u, { 'get "' .. u.path .. '" "' .. tmp .. '"' }, function(err)
 		if err then return cb(err) end
 		local f = io.open(tmp, "r")
 		if not f then return cb("Read temp failed") end
@@ -81,30 +92,38 @@ function M.read(uri, cb)
 end
 
 function M.write(uri, data, cb)
-	local host, remote = parse_uri(uri)
+	local u = uri_parser.parse(uri)
+	if not u or not u.host then return cb("Invalid SFTP URI") end
 	local tmp = vim.fn.tempname()
 	local f = io.open(tmp, "w")
 	if not f then return cb("Write temp failed") end
 	f:write(data); f:close()
-	run_batch(host, { 'put "' .. tmp .. '" "' .. remote .. '"' }, function(err)
+	run_batch(u, { 'put "' .. tmp .. '" "' .. u.path .. '"' }, function(err)
 		os.remove(tmp); cb(err)
 	end)
 end
 
 function M.delete(uri, recursive, cb)
-	local host, path = parse_uri(uri)
-	run_batch(host, { (recursive and "rmdir " or "rm ") .. '"' .. path .. '"' }, cb)
+	local u = uri_parser.parse(uri)
+	if not u or not u.host then return cb("Invalid SFTP URI") end
+	run_batch(u, { (recursive and "rmdir " or "rm ") .. '"' .. u.path .. '"' }, cb)
 end
 
 function M.rename(old_uri, new_uri, cb)
-	local host, old_p = parse_uri(old_uri)
-	local _, new_p = parse_uri(new_uri)
-	run_batch(host, { 'rename "' .. old_p .. '" "' .. new_p .. '"' }, cb)
+	local u_old = uri_parser.parse(old_uri)
+	local u_new = uri_parser.parse(new_uri)
+	if not u_old or not u_new or not u_old.host then return cb("Invalid SFTP URI") end
+	run_batch(u_old, { 'rename "' .. u_old.path .. '" "' .. u_new.path .. '"' }, cb)
+end
+
+function M.copy(src_uri, dest_uri, cb)
+	cb("Copy not supported directly on SFTP")
 end
 
 function M.mkdir(uri, cb)
-	local host, path = parse_uri(uri)
-	run_batch(host, { 'mkdir "' .. path .. '"' }, cb)
+	local u = uri_parser.parse(uri)
+	if not u or not u.host then return cb("Invalid SFTP URI") end
+	run_batch(u, { 'mkdir "' .. u.path .. '"' }, cb)
 end
 
 return M

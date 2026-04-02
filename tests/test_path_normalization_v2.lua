@@ -40,7 +40,7 @@ print("\n3. URI & Schemes:")
 if not assert_eq(path_utils.normalize("sftp://user@host/path//to"), "sftp://user@host/path/to", "SFTP path cleaning") then failed = failed + 1 end
 if not assert_eq(path_utils.normalize("zip:///mnt/c/test.zip::internal/path"), "zip:///mnt/c/test.zip::internal/path", "Archive URI preservation") then failed = failed + 1 end
 
--- 4. Archive Internal Logic (via engine logic simulation)
+-- 4. Archive Component Parsing (via engine logic simulation)
 print("\n4. Archive Component Parsing:")
 local archive_uri = "zip:///mnt/c/test.zip::folder/file.txt"
 local scheme, rest = archive_uri:match("^([^:]+)://(.*)$")

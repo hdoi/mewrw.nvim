@@ -4,12 +4,12 @@ package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.pa
 local mewrw = require("mewrw")
 local engine = require("mewrw.core.engine")
 
--- テスト用ディレクトリ
+-- Test directory
 local test_dir = root .. "/tests/sandbox_marks"
 vim.fn.delete(test_dir, "rf")
 vim.fn.mkdir(test_dir, "p")
 
--- 複数ファイル作成
+-- Create multiple files
 for i = 1, 3 do
 	local f = io.open(test_dir .. "/file" .. i .. ".txt", "w")
 	if f then
@@ -44,7 +44,7 @@ vim.wait(1000, function()
 	return s and #s.filtered_entries == 3
 end, 100, false)
 
--- ウィンドウにバッファをセットしてカレントにする
+-- Set buffer to current window
 vim.api.nvim_win_set_buf(0, bufnr)
 local state = engine.get_state()
 print("Initial entries: " .. #state.filtered_entries)
@@ -73,7 +73,7 @@ end
 
 -- 2. Bulk Delete
 print("\nStep 2: Testing Bulk Delete")
--- vim.fn.confirm をモック化 (1 = Yes)
+-- Mock vim.fn.confirm (1 = Yes)
 vim.fn.confirm = function(msg, choices, default)
 	print("Mocked confirm (" .. msg:gsub("\n", " ") .. "): Yes")
 	return 1
@@ -81,7 +81,7 @@ end
 
 engine.delete_under_cursor()
 
--- 削除後のリロード完了を待つ (engine.open が呼ばれてバッファが新しくなる)
+-- Wait for reload after deletion (engine.open is called and creates a new buffer)
 local final_buf
 vim.wait(1000, function()
 	final_buf = find_mewrw_buf()

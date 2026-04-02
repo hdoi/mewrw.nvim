@@ -1,4 +1,4 @@
--- package.path の設定
+-- Set package.path
 local root = vim.fn.getcwd()
 package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
 
@@ -22,11 +22,11 @@ local function test_list(uri)
 	end)
 end
 
--- 1. 普通のパス
+-- 1. Regular path
 test_list(".")
 
--- 2. file:// スキーム付き
+-- 2. With file:// scheme
 test_list("file://" .. root)
 
--- 3. 未対応のスキーム (エラーになるはず)
+-- 3. Unsupported scheme (should fail)
 test_list("unknown://path")

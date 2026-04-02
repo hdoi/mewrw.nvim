@@ -70,9 +70,24 @@ local function setup_autocmds(bufnr, state)
 	vim.api.nvim_create_autocmd("BufWipeout", { buffer = bufnr, callback = function() all_states[bufnr] = nil end })
 end
 
+--- Core: Open a URI.
+--- Performs check first, then creates buffer only on success.
 function M.open(uri, direction, opts)
 	opts = opts or {}
-	vim.schedule(function()
+	local target_uri = uri or (M.get_state() and M.get_state().uri) or vim.fn.getcwd()
+	
+	-- Normalize everything via path_utils (it now handles schemes correctly)
+	target_uri = path_utils.normalize(target_uri)
+
+	-- Pre-check access
+	fs.list(target_uri, async.ui_cb(function(err, entries)
+		if err then
+			vim.notify("Error: " .. tostring(err), vim.log.levels.ERROR)
+			-- Do nothing else, keep current buffer
+			return
+		end
+
+		-- Success: Create buffer and set state
 		if direction == "v" then vim.cmd("vsplit")
 		elseif direction == "h" then vim.cmd("split")
 		elseif direction == "t" then vim.cmd("tabnew") end
@@ -80,44 +95,36 @@ function M.open(uri, direction, opts)
 		local bufnr = vim.api.nvim_create_buf(false, true)
 		vim.api.nvim_set_current_buf(bufnr)
 
-		uri = uri or (M.get_state() and M.get_state().uri) or vim.fn.getcwd()
-		
-		-- Use path_utils.normalize which now correctly handles schemes
-		uri = path_utils.normalize(uri)
-
 		local state = State.new(bufnr, opts)
 		all_states[bufnr] = state
 		vim.b[bufnr].mewrw_state_id = bufnr
 		require("mewrw.ui.renderer").setup_buffer(bufnr)
 		setup_autocmds(bufnr, state)
 
-		fs.list(uri, async.ui_cb(function(err, entries)
-			if err then return vim.notify("Error: " .. tostring(err), vim.log.levels.ERROR) end
-			state:update(uri, entries, opts.expanded_nodes)
-			require("mewrw.ui.renderer").render(state)
+		state:update(target_uri, entries, opts.expanded_nodes)
+		require("mewrw.ui.renderer").render(state)
 
-			if vim.api.nvim_buf_is_valid(bufnr) then
-				local target_line = 6
-				local focus_uri = opts.focus_uri or opts.prev_uri
-				if focus_uri then
-					local nf = path_utils.normalize(focus_uri)
-					for i, e in ipairs(state.filtered_entries) do
-						if path_utils.normalize(e.path) == nf then target_line = i + HEADER_OFFSET; break end
-					end
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			local target_line = 6
+			local focus_uri = opts.focus_uri or opts.prev_uri
+			if focus_uri then
+				local nf = path_utils.normalize(focus_uri)
+				for i, e in ipairs(state.filtered_entries) do
+					if path_utils.normalize(e.path) == nf then target_line = i + HEADER_OFFSET; break end
 				end
-				pcall(vim.api.nvim_win_set_cursor, 0, { math.min(target_line, vim.api.nvim_buf_line_count(bufnr)), 0 })
 			end
+			pcall(vim.api.nvim_win_set_cursor, 0, { math.min(target_line, vim.api.nvim_buf_line_count(bufnr)), 0 })
+		end
 
-			if require("mewrw").config.git_integration and not uri:match("^%a+://") then
-				require("mewrw.core.git").get_info(uri, async.ui_cb(function(_, branch, statuses)
-					if branch or statuses then
-						state.git_branch, state.git_status = branch, statuses
-						require("mewrw.ui.renderer").render(state)
-					end
-				end))
-			end
-		end))
-	end)
+		if require("mewrw").config.git_integration and not target_uri:match("^%a+://") then
+			require("mewrw.core.git").get_info(target_uri, async.ui_cb(function(_, branch, statuses)
+				if branch or statuses then
+					state.git_branch, state.git_status = branch, statuses
+					require("mewrw.ui.renderer").render(state)
+				end
+			end))
+		end
+	end))
 end
 
 return M

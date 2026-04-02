@@ -29,21 +29,28 @@ function LocalProvider.list(uri, cb)
 	-- Windows virtual root: list drives
 	if path_utils.is_windows and path == "/" then
 		local stdout = {}
-		vim.fn.jobstart({ "powershell.exe", "-NoProfile", "-Command", "[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | Select-Object -ExpandProperty Name" }, {
+		-- Use fsutil which is faster and more widely available than powershell in restricted environments
+		vim.fn.jobstart({ "cmd.exe", "/c", "fsutil fsinfo drives" }, {
 			stdout_buffered = true,
-			on_stdout = function(_, d) stdout = d end,
+			on_stdout = function(_, d) for _, l in ipairs(d) do if l ~= "" then table.insert(stdout, l) end end end,
 			on_exit = function(_, c)
-				if c ~= 0 then return cb("Failed to list drives") end
 				local entries = {}
-				for _, line in ipairs(stdout) do
-					-- Just look for any sequence of [Letter]: in the line
-					local drive = line:match("(%a:)")
-					if drive then
-						table.insert(entries, {
-							name = drive .. "/",
-							path = drive .. "/",
-							type = "directory",
-						})
+				local output = table.concat(stdout, " ")
+				-- fsutil output looks like: "Drives: C:\ D:\ E:\"
+				for drive in output:gmatch("(%a:)\\") do
+					table.insert(entries, {
+						name = drive .. "/",
+						path = drive .. "/",
+						type = "directory",
+					})
+				end
+				-- If fsutil fails or returns nothing, fallback to a simpler scan (A-Z)
+				if #entries == 0 then
+					for i = 65, 90 do -- A-Z
+						local d = string.char(i) .. ":"
+						if vim.fn.isdirectory(d .. "/") == 1 then
+							table.insert(entries, { name = d .. "/", path = d .. "/", type = "directory" })
+						end
 					end
 				end
 				cb(nil, entries)

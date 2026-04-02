@@ -1,4 +1,4 @@
--- package.path に現在の lua ディレクトリを絶対パスで追加
+-- Set package.path to include the lua directory
 local root = vim.fn.getcwd()
 package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
 
@@ -34,11 +34,11 @@ local_provider.list(".", function(err, entries)
 		)
 	end
 
-	-- テスト完了フラグ
+	-- Test completion flag
 	_G.test_done = true
 end)
 
--- vim.wait で非同期処理の完了を待機
+-- Wait for async operation to complete
 vim.wait(1000, function()
 	return _G.test_done
 end)
