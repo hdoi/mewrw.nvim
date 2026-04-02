@@ -1,153 +1,120 @@
-local uv = vim.loop
-
 local path_utils = require("mewrw.utils.path")
 
----@type Provider
 local LocalProvider = {
 	name = "local",
 }
 
---- Join path components
-local function join_path(base, name)
-	return path_utils.join(base, name)
-end
-
---- Get absolute filesystem path from URI
 local function get_path(uri)
 	local path = uri:gsub("^file://", "")
 	return path_utils.normalize(path)
 end
 
 function LocalProvider.can_handle(uri)
-	-- Only handle local paths (no scheme) or explicit file://
-	return not uri:match("^%a+://") or uri:match("^file://")
+	if uri:find(":::", 1, true) then return false end
+	local scheme = uri:match("^([%a%d%+%.%-]+)://")
+	local is_windows_drive = path_utils.is_windows and scheme and #scheme == 1
+	if scheme and not is_windows_drive and scheme ~= "file" then return false end
+	return true
 end
 
 function LocalProvider.list(uri, cb)
 	local path = get_path(uri)
-
-	-- Windows virtual root: list drives
+	
+	-- Windows: If path is "/", list all VALID drives
 	if path_utils.is_windows and path == "/" then
-		local stdout = {}
-		vim.fn.jobstart({ "powershell.exe", "-NoProfile", "-Command", "[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | Select-Object -ExpandProperty Name" }, {
-			stdout_buffered = true,
-			on_stdout = function(_, d) stdout = d end,
-			on_exit = function(_, c)
-				if c ~= 0 then return cb("Failed to list drives") end
-				local entries = {}
-				for _, line in ipairs(stdout) do
-					-- Just look for any sequence of [Letter]: in the line
-					local drive = line:match("(%a:)")
-					if drive then
-						table.insert(entries, {
-							name = drive .. "/",
-							path = drive .. "/",
-							type = "directory",
-						})
+		local drives = {}
+		local handle = io.popen("fsutil fsinfo drives")
+		if handle then
+			local res = handle:read("*a")
+			handle:close()
+			for d in res:gmatch("(%a):") do 
+				local drive_path = d:upper() .. ":/"
+				-- Strict check: must be a directory AND stat-able
+				if vim.fn.isdirectory(drive_path) == 1 then
+					local stat = vim.loop.fs_stat(drive_path)
+					if stat then
+						table.insert(drives, drive_path)
 					end
 				end
-				cb(nil, entries)
 			end
-		})
-		return
+		end
+		-- Fallback to A-Z only if fsutil failed completely
+		if #drives == 0 then
+			for i = 65, 90 do
+				local d = string.char(i) .. ":/"
+				if vim.fn.isdirectory(d) == 1 then
+					if vim.loop.fs_stat(d) then table.insert(drives, d) end
+				end
+			end
+		end
+		
+		local entries = {}
+		for _, d in ipairs(drives) do
+			table.insert(entries, { name = d, path = d, type = "directory", size = 0 })
+		end
+		return cb(nil, entries)
 	end
 
-	uv.fs_scandir(path, function(err, iter)
-		if err then return cb(err) end
+	local entries = {}
+	local handle = vim.loop.fs_scandir(path)
+	if not handle then return cb("ENOENT: no such file or directory: " .. path) end
 
-		local entries = {}
-		local function process_next()
-			local name, type = uv.fs_scandir_next(iter)
-			if not name then return cb(nil, entries) end
-
-			local entry_path = join_path(path, name)
-			uv.fs_stat(entry_path, function(stat_err, stat)
-				table.insert(entries, {
-					name = name,
-					path = entry_path,
-					type = type or "other",
-					size = stat and stat.size,
-					mtime = stat and stat.mtime.sec,
-				})
-				process_next()
-			end)
-		end
-		process_next()
-	end)
+	while true do
+		local name, type = vim.loop.fs_scandir_next(handle)
+		if not name then break end
+		local full_path = path_utils.join(path, name)
+		local stat = vim.loop.fs_stat(full_path)
+		table.insert(entries, {
+			name = name,
+			path = full_path,
+			type = type or "file",
+			size = stat and stat.size or 0,
+			mtime = stat and stat.mtime.sec or 0,
+		})
+	end
+	cb(nil, entries)
 end
 
 function LocalProvider.read(uri, cb)
 	local path = get_path(uri)
-	uv.fs_open(path, "r", 438, function(err, fd)
-		if err then return cb(err) end
-		uv.fs_fstat(fd, function(stat_err, stat)
-			if stat_err then
-				uv.fs_close(fd)
-				return cb(stat_err)
-			end
-			uv.fs_read(fd, stat.size, 0, function(read_err, data)
-				uv.fs_close(fd)
-				cb(read_err, data)
-			end)
-		end)
-	end)
+	local f = io.open(path, "rb")
+	if not f then return cb("Read failed") end
+	local data = f:read("*a")
+	f:close()
+	cb(nil, data)
 end
 
 function LocalProvider.write(uri, data, cb)
 	local path = get_path(uri)
-	uv.fs_open(path, "w", 438, function(err, fd)
-		if err then return cb(err) end
-		uv.fs_write(fd, data, 0, function(write_err)
-			uv.fs_close(fd)
-			cb(write_err)
-		end)
-	end)
+	local f = io.open(path, "wb")
+	if not f then return cb("Write failed") end
+	f:write(data); f:close()
+	cb(nil)
 end
 
 function LocalProvider.delete(uri, recursive, cb)
 	local path = get_path(uri)
-	uv.fs_stat(path, function(err, stat)
-		if err then return cb(err) end
-		if stat.type == "directory" then
-			if recursive then
-				vim.schedule(function()
-					local cmd = path_utils.is_windows 
-						and { "cmd.exe", "/c", "rmdir", "/s", "/q", path:gsub("/", "\\") } 
-						or { "rm", "-rf", path }
-					vim.fn.jobstart(cmd, { on_exit = function(_, c) if c == 0 then cb(nil) else cb("Delete failed") end end })
-				end)
-			else
-				uv.fs_rmdir(path, cb)
-			end
-		else
-			uv.fs_unlink(path, cb)
-		end
-	end)
+	vim.fn.delete(path, recursive and "rf" or "")
+	cb(nil)
 end
 
 function LocalProvider.rename(old_uri, new_uri, cb)
-	uv.fs_rename(get_path(old_uri), get_path(new_uri), cb)
+	local old_p, new_p = get_path(old_uri), get_path(new_uri)
+	local ok, err = os.rename(old_p, new_p)
+	cb(ok and nil or err)
 end
 
 function LocalProvider.copy(src_uri, dest_uri, cb)
-	local src, dest = get_path(src_uri), get_path(dest_uri)
-	uv.fs_stat(src, function(err, stat)
+	LocalProvider.read(src_uri, function(err, d)
 		if err then return cb(err) end
-		if stat.type == "directory" then
-			vim.schedule(function()
-				local cmd = path_utils.is_windows 
-					and { "cmd.exe", "/c", "xcopy", "/e", "/i", "/y", src:gsub("/", "\\"), dest:gsub("/", "\\") } 
-					or { "cp", "-r", src, dest }
-				vim.fn.jobstart(cmd, { on_exit = function(_, c) if c == 0 then cb(nil) else cb("Copy failed") end end })
-			end)
-		else
-			uv.fs_copyfile(src, dest, nil, cb)
-		end
+		LocalProvider.write(dest_uri, d, cb)
 	end)
 end
 
 function LocalProvider.mkdir(uri, cb)
-	uv.fs_mkdir(get_path(uri), 493, cb)
+	local path = get_path(uri)
+	vim.fn.mkdir(path, "p")
+	cb(nil)
 end
 
 return LocalProvider

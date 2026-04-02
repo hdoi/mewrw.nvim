@@ -1,4 +1,4 @@
--- package.path の設定
+-- Set package.path
 local root = vim.fn.getcwd()
 package.path = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua;" .. package.path
 
@@ -43,7 +43,7 @@ for i, line in ipairs(lines) do
   end
 end
 
--- 期待される行が含まれているかチェック
+-- Check if expected lines are present
 local found_header = false
 local found_files = false
 for _, line in ipairs(lines) do

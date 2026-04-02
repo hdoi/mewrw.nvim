@@ -9,7 +9,7 @@ local test_dir = root .. "/tests/tmp_ext_sort"
 vim.fn.delete(test_dir, "rf")
 vim.fn.mkdir(test_dir, "p")
 
--- テスト用ファイルの作成 (拡張子バラバラ)
+-- Create test files with different extensions
 uv.fs_open(test_dir .. "/z.lua", "w", 438, function(err, fd) uv.fs_close(fd) end)
 uv.fs_open(test_dir .. "/a.txt", "w", 438, function(err, fd) uv.fs_close(fd) end)
 uv.fs_open(test_dir .. "/b.lua", "w", 438, function(err, fd) uv.fs_close(fd) end)
@@ -30,7 +30,7 @@ print("Order: " .. table.concat(names, ", "))
 
 -- 2. Extension Sort
 print("\nStep 2: Extension Sort (Expect: b.lua, z.lua, a.txt)")
--- name -> numerical -> extension
+-- cycle: name -> numerical -> extension
 engine.cycle_sort() 
 engine.cycle_sort() 
 print("Current sort_by: " .. state.sort_by)

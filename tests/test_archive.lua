@@ -6,7 +6,7 @@ local engine = require("mewrw.core.engine")
 local fs = require("mewrw.fs")
 local uv = vim.loop
 
--- テスト用のディレクトリを固定
+-- Set a fixed directory for testing
 local test_dir = root .. "/tests/sandbox_archive"
 vim.fn.delete(test_dir, "rf")
 vim.fn.mkdir(test_dir, "p")

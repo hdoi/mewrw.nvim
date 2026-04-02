@@ -9,7 +9,7 @@ local test_dir = root .. "/tests/tmp_sort"
 vim.fn.delete(test_dir, "rf")
 vim.fn.mkdir(test_dir, "p")
 
--- テスト用ファイルの作成
+-- Create test files for natural sort comparison
 uv.fs_open(test_dir .. "/file10.txt", "w", 438, function(err, fd) uv.fs_close(fd) end)
 uv.fs_open(test_dir .. "/file2.txt", "w", 438, function(err, fd) uv.fs_close(fd) end)
 uv.fs_open(test_dir .. "/file1.txt", "w", 438, function(err, fd) uv.fs_close(fd) end)
