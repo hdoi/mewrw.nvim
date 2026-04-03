@@ -9,6 +9,7 @@ local M = {}
 ---@field sort_reverse? boolean
 ---@field icons? IconMode
 ---@field git_integration? boolean
+---@field debug? boolean
 
 ---@type MewrwConfig
 M.config = {
@@ -18,12 +19,14 @@ M.config = {
 	sort_reverse = false,
 	icons = "none",
 	git_integration = false,
+	debug = false,
 }
 
 --- Initialize the plugin with user configuration
 ---@param opts? MewrwConfig
 function M.setup(opts)
 	M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+	_G.mewrw_debug = M.config.debug
 end
 
 --- Open the file explorer

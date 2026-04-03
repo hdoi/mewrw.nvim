@@ -21,7 +21,6 @@ local function run_batch(u, commands, cb)
 	local host_arg = u.host
 	if u.user then host_arg = u.user .. "@" .. u.host end
 	
-	-- Construct sftp command: handle port if present
 	local cmd = { "sftp", "-b", "-" }
 	if u.port then
 		table.insert(cmd, "-P")
@@ -49,13 +48,17 @@ end
 
 function M.list(uri, cb)
 	local u = uri_parser.parse(uri)
-	if not u or not u.host then return cb("Invalid SFTP URI: " .. tostring(uri)) end
+	if not u or not u.host then return cb("Invalid SFTP URI") end
 
-	-- Ensure path ends with / for correct joining
-	local base_dir = u.path:gsub("/$", "") .. "/"
+	-- Ensure path is at least "/"
+	local target_path = u.path
+	if not target_path or target_path == "" then target_path = "/" end
+
+	-- Normalize base_dir for URI re-construction of entries
+	local base_dir = target_path:gsub("/$", "") .. "/"
 	local uri_prefix = "sftp://" .. (u.user and (u.user .. "@") or "") .. u.host .. (u.port and (":" .. u.port) or "")
 	
-	run_batch(u, { 'ls -l "' .. u.path .. '"' }, function(err, output)
+	run_batch(u, { 'ls -l "' .. target_path .. '"' }, function(err, output)
 		if err then return cb(err) end
 		local entries = {}
 		for _, line in ipairs(output or {}) do

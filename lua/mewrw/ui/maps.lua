@@ -10,6 +10,7 @@ function M.setup(bufnr)
 
 	-- Navigation
 	vim.keymap.set("n", "<CR>", nav.open_under_cursor, opts)
+	vim.keymap.set("n", "p", nav.open_vsplit, opts)
 	vim.keymap.set("n", "x", nav.open_external, opts)
 	vim.keymap.set("n", "-", nav.up_directory, opts)
 	vim.keymap.set("n", "<BS>", nav.up_directory, opts)

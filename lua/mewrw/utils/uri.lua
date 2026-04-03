@@ -1,5 +1,7 @@
 local M = {}
 
+local is_windows = vim.fn.has("win32") == 1
+
 --- Parse a single URI layer
 local function parse_layer(str)
 	local res = {
@@ -11,29 +13,43 @@ local function parse_layer(str)
 		path = nil,
 	}
 
-	-- Flexible scheme extraction: support scheme://, scheme:/, or scheme:
-	local scheme, rest = str:match("^([^:]+)://(.*)$")
+	local s = str:gsub("^%s+", ""):gsub("%s+$", "")
+
+	-- 1. Flexible scheme extraction
+	local scheme, rest = s:match("^([^:]+)://(.*)$")
 	if not scheme then
-		scheme, rest = str:match("^([^:]+):/(.*)$")
+		scheme, rest = s:match("^([^:]+):/(.*)$")
 	end
 	if not scheme then
-		scheme, rest = str:match("^([^:]+):(.*)$")
+		scheme, rest = s:match("^([^:]+):(.*)$")
 	end
 	
+	-- Windows Guard: Single letter scheme is likely a drive letter, NOT a scheme.
+	-- But if it's followed by :// (like c://), we might still treat it as a scheme
+	-- depending on the spec. Here we follow URI_spec.md: 1-char is NOT a scheme.
+	if scheme and is_windows and #scheme == 1 then
+		return nil
+	end
+
 	if not scheme then return nil end
 	res.scheme = scheme:lower()
 	rest = rest or ""
 
-	-- Separate authority and path
-	-- Authority is everything before the first single slash
+	-- 2. Action-only schemes (zip, tar, etc.)
+	if res.scheme == "zip" or res.scheme == "tar" or res.scheme == "7z" or res.scheme == "compress" then
+		res.path = rest:match("^/*(.*)$")
+		if not res.path:match("^/") then res.path = "/" .. res.path end
+		return res
+	end
+
+	-- 3. Authority schemes (sftp, file)
 	local authority, path = rest:match("^([^/]*)(/.*)$")
 	if not authority then
 		authority = rest
-		path = ""
+		path = "/"
 	end
 	res.path = path
 
-	-- Parse authority: [user[:password]@]host[:port]
 	local user_pass, host_port = authority:match("^([^@]+)@(.*)$")
 	if not user_pass then
 		host_port = authority
@@ -51,30 +67,25 @@ local function parse_layer(str)
 	return res
 end
 
---- Parse a chained URI string (e.g., base:::zip://path)
+--- Parse a chained URI string
 function M.parse_chain(str)
 	if not str or str == "" then return {} end
+	
 	local parts = vim.split(str, ":::", { plain = true })
 	local chain = {}
 	for _, p in ipairs(parts) do
-		local parsed = parse_layer(p)
+		local trimmed = p:gsub("^%s+", ""):gsub("%s+$", "")
+		local parsed = parse_layer(trimmed)
 		if parsed then
 			table.insert(chain, parsed)
 		else
-			-- Fallback for local paths or first layer
-			table.insert(chain, { scheme = "file", path = p })
+			-- Fallback: treat as raw file path (especially for Windows drives)
+			table.insert(chain, { scheme = "file", path = trimmed })
 		end
 	end
 	return chain
 end
 
---- Get the last layer's scheme
-function M.get_scheme(str)
-	local chain = M.parse_chain(str)
-	return chain[#chain] and chain[#chain].scheme
-end
-
---- Parse the last layer (backward compatible)
 function M.parse(str)
 	local chain = M.parse_chain(str)
 	return chain[#chain]

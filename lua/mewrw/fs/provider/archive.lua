@@ -4,6 +4,12 @@ local M = {
 	name = "archive",
 }
 
+local function debug_print(msg)
+	if vim.fn.has("win32") == 1 and _G.mewrw_debug then
+		print("[DEBUG] archive: " .. msg)
+	end
+end
+
 function M.can_handle(uri)
 	local u = uri_parser.parse(uri)
 	if not u then return false end
@@ -11,8 +17,8 @@ function M.can_handle(uri)
 	return s == "zip" or s == "tar" or s == "7z" or s == "compress"
 end
 
---- Get command to run on archive
 local function get_archive_cmd(chain, action)
+	local path_utils = require("mewrw.utils.path")
 	local layer = chain[#chain]
 	local base = chain[#chain - 1]
 	local scheme = layer.scheme
@@ -30,20 +36,30 @@ local function get_archive_cmd(chain, action)
 		local inner_cmd = ""
 		if action == "list" then
 			if scheme == "zip" then inner_cmd = "unzip -l " .. vim.fn.shellescape(archive_path)
-			else inner_cmd = "tar -atvf " .. vim.fn.shellescape(archive_path) end
+			else inner_cmd = "tar -tvf " .. vim.fn.shellescape(archive_path) end
 		else -- read
 			if scheme == "zip" then inner_cmd = "unzip -p " .. vim.fn.shellescape(archive_path) .. " " .. vim.fn.shellescape(internal)
 			else inner_cmd = "tar -axf " .. vim.fn.shellescape(archive_path) .. " -O " .. vim.fn.shellescape(internal) end
 		end
 		table.insert(cmd, inner_cmd)
 	else
-		local abs_path = vim.fn.fnamemodify(archive_path, ":p")
-		if require("mewrw.utils.path").is_windows then abs_path = abs_path:gsub("/", "\\") end
+		local abs_path = archive_path
+		if not abs_path:match("^%a+://") then
+			abs_path = vim.fn.fnamemodify(abs_path, ":p"):gsub("\\", "/")
+		end
+		
+		if path_utils.is_windows then
+			abs_path = abs_path:gsub("^/+", "")
+			if scheme == "zip" and vim.fn.executable("unzip") == 1 then
+				abs_path = abs_path:gsub("/", "\\")
+			end
+		end
+
 		if action == "list" then
 			if scheme == "7z" then cmd = { "7z", "l", abs_path }
 			elseif scheme == "zip" and vim.fn.executable("unzip") == 1 then cmd = { "unzip", "-l", abs_path }
 			elseif scheme == "zip" then cmd = { "tar", "-tf", abs_path }
-			else cmd = { "tar", "-atvf", abs_path } end
+			else cmd = { "tar", "-tvf", abs_path } end
 		else -- read
 			if scheme == "7z" then cmd = { "7z", "x", abs_path, "-so", internal }
 			elseif scheme == "zip" and vim.fn.executable("unzip") == 1 then cmd = { "unzip", "-p", abs_path, internal }
@@ -58,22 +74,66 @@ function M.list(uri, cb)
 	if #chain < 1 then return cb("Invalid Archive URI") end
 	
 	local layer = chain[#chain]
+	if layer.scheme == "compress" then
+		if layer.path == "" or layer.path == "/" then
+			local base = chain[#chain - 1]
+			local archive_path = base and base.path or "archive"
+			local name = vim.fn.fnamemodify(archive_path, ":t"):gsub("%.[gx]z$", ""):gsub("%.bz2$", "")
+			local prefix = uri:gsub("/+$", "") .. "/"
+			return cb(nil, {{
+				name = name,
+				path = prefix .. name,
+				type = "file",
+				size = 0,
+			}})
+		else
+			return cb(nil, {})
+		end
+	end
+
 	local cmd, internal = get_archive_cmd(chain, "list")
-	-- Standardize internal: remove leading/trailing slashes for easier comparison
 	local target_dir = internal:gsub("^/+", ""):gsub("/+$", "")
-	local prefix = uri:gsub("/+$", ""):gsub("::.*$", "::")
+	
+	local parts = vim.split(uri, ":::", { plain = true })
+	if #parts > 0 then
+		parts[#parts] = layer.scheme .. "://"
+	end
+	local prefix = table.concat(parts, ":::")
 
 	local stdout = {}
 	vim.fn.jobstart(cmd, {
-		on_stdout = function(_, d) for _, l in ipairs(d) do if l ~= "" then table.insert(stdout, (l:gsub("\r", ""))) end end end,
+		on_stdout = function(_, d) 
+			for _, l in ipairs(d) do 
+				if l ~= "" then 
+					local clean = l:gsub("\r", "")
+					table.insert(stdout, clean) 
+				end 
+			end 
+		end,
 		on_exit = function(_, c)
 			if c ~= 0 then return cb(layer.scheme .. " failed: " .. c) end
 			local entries, found = {}, {}
-			for _, line in ipairs(stdout) do
+			
+			local filtered_stdout = {}
+			if layer.scheme == "zip" and cmd[1] == "unzip" then
+				local start_parsing = false
+				for _, line in ipairs(stdout) do
+					if line:match("^%s*[-]+%s+[-]+%s+") then
+						start_parsing = not start_parsing
+					elseif start_parsing then
+						if not line:match("%d+%s+files?$") then
+							table.insert(filtered_stdout, line)
+						end
+					end
+				end
+			else
+				filtered_stdout = stdout
+			end
+
+			for _, line in ipairs(filtered_stdout) do
 				local size, name, type_char
-				
-				if line:match("^Archive:") or line:match("^%s*Length") or line:match("^%s*[-]+%s+") or line:match("^%s*%d+%s+files?$") then
-					-- Skip header
+				if line:match("^Archive:") or line:match("^%s*Length") or line:match("^%s*[-]+%s+") then
+					-- skip
 				elseif layer.scheme == "7z" then
 					if line:match("^%d%d%d%d%-%d%d%-%d%d") then
 						size, name = line:match("%d%d%d%d%-%d%d%-%d%d%s+%d%d:%d%d:%d%d%s+[^%s]+%s+(%d+)%s+[^%s]+%s+(.+)$")
@@ -89,25 +149,31 @@ function M.list(uri, cb)
 						end
 					end
 				elseif line:match("^[%-dbcl]") then
+					-- Robust Tar parsing: 
+					-- 1. Extract type from first char
 					type_char = line:sub(1, 1)
-					size, name = line:match("%s+(%d+)%s+%d%d%d%d%-%d%d%-%d%d%s+%d%d:%d%d%s+(.+)$")
-					if not name then name = line:match("^%s*(.-)%s*$") size = 0 end
+					-- 2. Extract name by splitting by multiple spaces and taking the last part
+					-- Based on tar.log: drwxrwxr-x  0 anoop  anoop       0 2 13  2024 hmpol-0.1.5/
+					-- The name starts after the date/time part. 
+					-- Strategy: Find the first occurrence of a path-like string (with /) or just the 9th+ column.
+					local parts_list = vim.split(line, "%s+")
+					-- Standard tar format name is usually the last column
+					name = parts_list[#parts_list]
+					if name == "" then name = parts_list[#parts_list - 1] end -- Handle trailing space
+					-- Size is usually the 5th column
+					size = parts_list[5]
 				end
 
 				if name then
 					name = name:gsub("\\", "/"):gsub("^%.[/\\]+", ""):gsub("^/+", ""):gsub("%s+$", "")
 					local clean_name = name:gsub("/+$", "")
 					
-					-- Hierarchical check:
-					-- 1. If target_dir is empty, we are at root.
-					-- 2. If target_dir matches start of clean_name, we are potentially inside.
 					local is_match = false
 					local relative = ""
 					if target_dir == "" then
 						is_match = true
 						relative = name
 					elseif clean_name:sub(1, #target_dir) == target_dir then
-						-- Ensure it's not a partial match (e.g., target 'abc' should not match 'abcde/')
 						local next_char = name:sub(#target_dir + 1, #target_dir + 1)
 						if next_char == "/" or next_char == "" then
 							is_match = true
@@ -116,9 +182,9 @@ function M.list(uri, cb)
 					end
 
 					if is_match and relative ~= "" then
-						local parts = vim.split(relative, "/")
-						local entry_name = parts[1]
-						local is_dir = #parts > 1 or name:match("/$") or type_char == "d"
+						local parts_rel = vim.split(relative, "/")
+						local entry_name = parts_rel[1]
+						local is_dir = #parts_rel > 1 or name:match("/$") or type_char == "d"
 						
 						if not found[entry_name] then
 							found[entry_name] = true

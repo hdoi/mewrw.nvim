@@ -72,7 +72,6 @@ function M.open_under_cursor()
 		elseif name_lower:match("%.7z$") then scheme = "7z"
 		elseif is_compressed then scheme = "compress" end
 		
-		-- Chain: ParentURI:::scheme:// (normalize handles the merging)
 		local new_uri = entry.path .. ":::" .. scheme .. "://"
 		return engine().open(new_uri)
 	end
@@ -106,6 +105,46 @@ function M.open_under_cursor()
 
 	-- 5. Local File
 	vim.cmd("edit " .. vim.fn.fnameescape(entry.path))
+end
+
+function M.open_vsplit()
+	local state = engine().get_state()
+	local entry = engine().get_entry()
+	if not state or not entry or entry.type == "directory" then return end
+	
+	local main_win = vim.api.nvim_get_current_win()
+	
+	-- Helper to update/create preview window
+	local function set_preview_buf(buf)
+		if state.preview_win and vim.api.nvim_win_is_valid(state.preview_win) then
+			vim.api.nvim_win_set_buf(state.preview_win, buf)
+		else
+			vim.cmd("rightbelow vsplit")
+			state.preview_win = vim.api.nvim_get_current_win()
+			vim.api.nvim_win_set_buf(state.preview_win, buf)
+		end
+		-- Keep focus on the main explorer window
+		vim.api.nvim_set_current_win(main_win)
+	end
+
+	local chain = uri_parser.parse_chain(entry.path)
+	if #chain > 1 or (chain[1] and chain[1].scheme ~= "file") then
+		fs.read(entry.path, function(err, data)
+			if err then return vim.notify(err, vim.log.levels.ERROR) end
+			vim.schedule(function()
+				local nb = vim.api.nvim_create_buf(false, true)
+				vim.api.nvim_buf_set_lines(nb, 0, -1, false, vim.split(data or "", "\n"))
+				vim.api.nvim_buf_set_name(nb, entry.path .. " (preview)")
+				set_preview_buf(nb)
+			end)
+		end)
+		return
+	end
+
+	-- Local file: Open existing buffer if possible, or create new one
+	local buf = vim.fn.bufadd(entry.path)
+	vim.fn.bufload(buf)
+	set_preview_buf(buf)
 end
 
 function M.open_external()
@@ -155,12 +194,21 @@ function M.up_directory()
 		local last_layer = chain[#chain]
 		
 		if last_layer.path == "" or last_layer.path == "/" then
-			-- At archive root: Go back to the base URI (remove the last layer)
+			-- At archive root: Go back to the parent directory of the archive file
 			local parts = vim.split(s.uri, ":::", { plain = true })
-			table.remove(parts)
-			local parent_uri = table.concat(parts, ":::")
-			opts.focus_uri = parent_uri
-			return engine().open(parent_uri, nil, opts)
+			if #parts > 1 then
+				-- Remove the last layer (e.g., zip://)
+				table.remove(parts)
+				-- The remaining chain points to the archive file itself
+				local archive_uri = table.concat(parts, ":::")
+				
+				-- The focus should be the normalized archive path
+				opts.focus_uri = path_utils.normalize(archive_uri)
+				-- The directory to open is the parent of that archive
+				local parent_uri = vim.fn.fnamemodify(opts.focus_uri, ":h")
+				
+				return engine().open(parent_uri, nil, opts)
+			end
 		else
 			-- Move up within archive
 			local parent_internal = vim.fn.fnamemodify(last_layer.path, ":h")

@@ -21,6 +21,8 @@ local tests = {
 	"tests/test_target_ops.lua",
 	"tests/test_tree_view.lua",
 	"tests/test_ui_render.lua",
+	"tests/test_uri.lua",
+	"tests/test_uri_chain.lua",
 }
 
 print("========================================")

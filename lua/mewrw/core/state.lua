@@ -42,8 +42,11 @@ function State.new(bufnr, opts)
 	self.view_mode = opts.view_mode or global_config.default_view_mode
 	self.expanded_nodes = opts.expanded_nodes or {}
 	self.icons = opts.icons or global_config.icons
-	
+	self.focus_uri = opts.focus_uri
+	self.preview_win = nil -- Add this
+
 	self.git_branch = nil
+
 	self.git_status = nil
 	return self
 end

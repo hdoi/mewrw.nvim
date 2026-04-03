@@ -1,7 +1,7 @@
 local M = {}
 
 local content = {
-	{ "Navigation", "header" }, { "<CR>", "key", "Open" }, { "-", "key", "Up" }, { "R", "key", "Reload" }, { "x", "key", "OS Open" },
+	{ "Navigation", "header" }, { "<CR>", "key", "Open" }, { "p", "key", "Preview (Right)" }, { "-", "key", "Up" }, { "R", "key", "Reload" }, { "x", "key", "OS Open" },
 	{ "View", "header" }, { "i", "key", "Mode" }, { "a", "key", "Hidden" }, { "A", "key", "Full Path" }, { "?", "key", "Filter" },
 	{ "Sort", "header" }, { "s", "key", "Criteria" }, { "S", "key", "Reverse" },
 	{ "Marks", "header" }, { "mf", "key", "Toggle Mark" }, { "mt", "key", "Clear Marks" }, { "ma", "key", "Show Marked List" }, { "TT", "key", "Set Target" }, { "Tc", "key", "Copy to Target" }, { "Tm", "key", "Move to Target" },

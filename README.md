@@ -1,18 +1,18 @@
 # mewrw
 
-A modern, asynchronous file browser and remote file transfer plugin for Neovim, designed as a powerful and extensible replacement for the built-in `netrw`.
+An **experimental**, modern, asynchronous file browser and remote file transfer plugin for Neovim, designed as a powerful and extensible replacement for the built-in `netrw`.
 
 ## Features
 
 - **Asynchronous I/O**: All filesystem operations (local and remote) use non-blocking I/O (Libuv or jobstart), ensuring the UI remains perfectly responsive even during large transfers or archive indexing.
-- **Unified Interface**: Same experience across Local FS, SFTP, and Archives (`.zip`, `.tar`, `.tar.gz`, `.tgz`).
-- **Clean Copy-Paste (Virtual Text)**: Icons and Git status indicators are rendered using Neovim's `extmarks` (virtual text). They are visible in the UI but **do not interfere with text selection or copying**—when you yank a line or copy with a mouse, you get only the clean filename/path.
+- **Unified Interface**: Same experience across Local FS, SFTP, and Archives (`.zip`, `.tar`, `.tar.gz`, `.tgz`, `.7z`).
+- **Chained URIs**: Deeply nested navigation support using the `:::` separator (e.g., browsing a Zip file inside an SFTP server).
+- **Clean Copy-Paste (Virtual Text)**: Icons and Git status indicators are rendered using Neovim's `extmarks` (virtual text). They are visible in the UI but **do not interfere with text selection or copying**.
 - **Git Integration**:
   - Displays the current branch in the header.
   - Shows file status (`[M]`, `[A]`, `[?]`, etc.) at the end of the line.
   - **Directory Propagation**: If any file inside a directory is modified, the directory itself will show a `[M]` status.
 - **Icon Support**: Choose between `none`, `emoji` (built-in, no extra font required), or `devicons` (requires `nvim-web-devicons`).
-- **Global Mark Management**: Mark items across different directories or windows. Selection is shared globally.
 - **Target-Based Workflow**: Set a "Target Directory" once and perform Copy/Move operations from any other buffer with a single keypress.
 - **Advanced Tree View**: Visual hierarchy with recursive expansion (`E`) and navigation.
 - **Windows Friendly**: Full support for drive letters (e.g., `C:/`), network shares, and a virtual "This PC" root (`/`) to switch between drives.
@@ -51,6 +51,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
             icons = "emoji",            -- "none", "emoji", or "devicons"
             git_integration = true,      -- Enable git status and branch info
             default_view_mode = "list",  -- "list", "detailed", or "tree"
+            debug = false,               -- Set to true to see verbose logs (especially on Windows)
         })
     end
 }
@@ -68,23 +69,25 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 | `:MewrwT [uri]` | Open in a new tab |
 | `:Explorer [uri]` | Alias for `:MewrwH` (compatible with netrw habits) |
 
-### URI Schemes
+### URI Specification (Chaining)
 
-- **Local**: `.` or `/path/to/dir` or `C:/path/to/dir`
+`mewrw` uses `:::` to chain multiple actions or layers.
+
+- **Local**: `/home/user/test.zip` (Linux) or `C:/test.zip` (Windows)
 - **SFTP**: `sftp://user@host/path`
-- **Archives**:
-  - Linux: `zip:///abs/path.zip::internal/path` (Note the triple slash for absolute paths)
-  - Windows: `zip://C:/path.zip::internal/path`
-  - Relative: `zip://./local.zip::internal/path`
+- **Chained Archive**:
+  - Open local zip: `C:/test.zip:::zip://`
+  - Open remote zip: `sftp://host/data.zip:::zip://`
+  - Deep nesting: `sftp://host/backup.tar:::tar://nested.zip:::zip://`
+- **Compressed Files**: `test.gz:::compress://` (displays the uncompressed file as a virtual entry)
 
 ## Key Mappings
 
-Press `u` within any `mewrw` buffer to see the interactive help popup.
-
 | Key | Action |
 | :--- | :--- |
-| `<CR>` | Open file (edit) or enter directory |
-| `-` / `<BS>` | Go up to parent directory (Exits archives if at root) |
+| `<CR>` | Open file (edit) or enter directory / archive |
+| `p` | Quick preview in a right pane (Focus stays in explorer) |
+| `-` / `<BS>` | Go up to parent directory (Exits archives to the host folder) |
 | `R` | Reload/Refresh current view |
 | `i` | Cycle View Mode (List → Detailed → Tree) |
 | `a` | Toggle display of Hidden files (dotfiles) |
@@ -97,9 +100,9 @@ Press `u` within any `mewrw` buffer to see the interactive help popup.
 ## Requirements
 
 - Neovim 0.8+
-- **For SFTP**: `sftp` command.
-- **For Archives**: `zip`, `unzip`, or `tar` (standard on Windows 10+) commands.
-- **For Icons**: `nvim-web-devicons` (optional, only for `icons = "devicons"`).
+- **For SFTP**: `sftp` and `ssh` commands.
+- **For Archives**: `zip`, `unzip`, `7z` or `tar` (standard on Windows 10+ / Linux).
+- **For Icons**: `nvim-web-devicons` (optional).
 
 ## License
 

@@ -4,39 +4,40 @@ local M = {}
 M.is_windows = vim.fn.has("win32") == 1
 M.sep = M.is_windows and "\\" or "/"
 
---- Normalize a single path part (internal helper)
 local function normalize_part(p, is_first_layer)
-	if not p or p == "" then return "" end
+	if not p or p == "" then return "/" end
+	if p == "/" then return "/" end
 	
-	-- 1. Unify separators (backslashes to forward slashes)
 	p = p:gsub("\\", "/")
 
-	-- 2. Extract scheme if present (e.g., zip://)
-	local scheme, rest = p:match("^([^:]+://)(.*)$")
-	if not scheme then
-		-- Fallback for scheme:/ or scheme:
-		scheme, rest = p:match("^([^:]+:/?)(.*)$")
+	local scheme = p:match("^([%a%d%+%.%-]+)://")
+	local is_windows_drive = M.is_windows and scheme and #scheme == 1
+	
+	if scheme and not is_windows_drive then
+		local s, rest = p:match("^([^:]+://)(.*)$")
+		return s .. rest:gsub("/+", "/")
 	end
 
-	if scheme then
-		-- Only normalize the 'rest' part to avoid collapsing scheme slashes
-		return scheme .. rest:gsub("/+", "/")
-	end
-
-	-- 3. If no scheme, it's a local path or raw fragment
 	if is_first_layer then
-		-- Absolute resolution for local filesystem paths
 		if M.is_windows then
-			local drive = p:match("^(%a):")
+			local drive, rest = p:match("^/?(%a):(.*)$")
 			if drive then
-				local r = p:sub(3):gsub("^/+", "")
-				p = drive:upper() .. ":/" .. r
+				p = drive:upper() .. ":" .. rest:gsub("^/+", "/")
 			else
 				p = vim.fn.fnamemodify(p, ":p"):gsub("\\", "/")
 			end
 		else
 			p = vim.fn.fnamemodify(p, ":p"):gsub("\\", "/")
 		end
+	end
+
+	p = p:gsub("/+", "/")
+	if p ~= "/" and not (M.is_windows and p:match("^%a:/$")) then
+		p = p:gsub("[\\/]%.?%s*$", "")
+	end
+	
+	if M.is_windows and p:match("^/%a:/") then
+		p = p:sub(2)
 	end
 
 	-- 4. Collapse redundant slashes and cleanup trailing junk
@@ -49,18 +50,20 @@ local function normalize_part(p, is_first_layer)
 end
 
 function M.normalize(path)
-	if not path or path == "" then return "/" end
+	if not path or path == "" or path == "/" then return "/" end
 	
-	-- Split by chain separator (plain text search)
 	local parts = vim.split(path, ":::", { plain = true })
 	local normalized_parts = {}
-	
 	for i, part in ipairs(parts) do
-		table.insert(normalized_parts, normalize_part(part, i == 1))
+		local trimmed = part:gsub("^%s+", ""):gsub("%s+$", "")
+		table.insert(normalized_parts, normalize_part(trimmed, i == 1))
+	end
+	local result = table.concat(normalized_parts, ":::")
+	
+	if M.is_windows and _G.mewrw_debug then
+		print(string.format("[DEBUG] path.normalize: '%s' -> '%s'", path, result))
 	end
 	
-	local result = table.concat(normalized_parts, ":::")
-	if result == "" then return "/" end
 	return result
 end
 
@@ -72,7 +75,8 @@ end
 
 function M.is_root(path)
 	if M.is_windows then
-		return path == "/" or path:match("^%a:/$") ~= nil or path:match("^%a::?$") ~= nil
+		if path:find(":::") then return false end
+		return path == "/" or path:match("^%a:/$") ~= nil
 	else
 		return path == "/"
 	end

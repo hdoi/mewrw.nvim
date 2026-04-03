@@ -88,7 +88,7 @@ function M.open(uri, direction, opts)
 		end
 
 		-- Success: Create buffer and set state
-		if direction == "v" then vim.cmd("vsplit")
+		if direction == "v" then vim.cmd("rightbelow vsplit")
 		elseif direction == "h" then vim.cmd("split")
 		elseif direction == "t" then vim.cmd("tabnew") end
 
