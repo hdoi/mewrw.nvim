@@ -74,8 +74,17 @@ end
 --- Performs check first, then creates buffer only on success.
 function M.open(uri, direction, opts)
 	opts = opts or {}
-	local target_uri = uri or (M.get_state() and M.get_state().uri) or vim.fn.getcwd()
-	
+
+	local target_uri = uri
+	if not target_uri or target_uri == "." then
+		local bufname = vim.api.nvim_buf_get_name(0)
+		if bufname ~= "" and vim.bo.buftype == "" then
+			target_uri = vim.fn.fnamemodify(bufname, ":p:h")
+		end
+	end
+
+	target_uri = target_uri or (M.get_state() and M.get_state().uri) or vim.fn.getcwd()
+
 	-- Normalize everything via path_utils (it now handles schemes correctly)
 	target_uri = path_utils.normalize(target_uri)
 
