@@ -66,9 +66,11 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 | `:Mewrw [uri]` | Open explorer in the current window |
 | `:MewrwV [uri]` | Open in a vertical split |
 | `:MewrwH [uri]` | Open in a horizontal split |
-| `:MewrwT [uri]` | Open in a new tab |
-| `:Explorer [uri]` | Alias for `:MewrwH` (compatible with netrw habits) |
+- **Persistent Bookmarks**: Quickly save and recall locations via a persistent selection menu.
+- **Batch Rename**: Integrated buffer-based batch renaming for multiple files or marked items.
 
+## Screenshots
+...
 ### URI Specification (Chaining)
 
 `mewrw` uses `:::` to chain multiple actions or layers.
@@ -83,19 +85,48 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ## Key Mappings
 
+### Navigation & Files
 | Key | Action |
 | :--- | :--- |
 | `<CR>` | Open file (edit) or enter directory / archive |
 | `p` | Quick preview in a right pane (Focus stays in explorer) |
+| `x` | Open file/directory with external application |
 | `-` / `<BS>` | Go up to parent directory (Exits archives to the host folder) |
 | `R` | Reload/Refresh current view |
+| `?` | Live filter entries in the current view |
+| `u` | Show help (Mewrw manual) |
+
+### View Options
+| Key | Action |
+| :--- | :--- |
 | `i` | Cycle View Mode (List → Detailed → Tree) |
 | `a` | Toggle display of Hidden files (dotfiles) |
-| `?` | Live filter entries in the current view |
-| `mf` | Toggle mark (supports Visual mode) |
+| `A` | Toggle display of Full Path for entries |
+| `s` | Cycle Sort Type (Name → Numerical → Extension → Size → Mtime) |
+| `S` | Toggle Sort Order (Ascending / Descending) |
+| `C` | **Tree Mode**: Collapse all expanded nodes |
+| `E` | **Tree Mode**: Expand all directories recursively |
+
+### Marks & Operations
+| Key | Action |
+| :--- | :--- |
+| `mf` | Toggle mark for item under cursor (Supports **Visual Mode**) |
+| `mt` | Clear all current marks |
+| `ma` | Show a list of all currently marked items |
 | `TT` | Set current directory as **Global Target** |
 | `Tc` | Copy marked items to **Global Target** |
 | `Tm` | Move marked items to **Global Target** |
+| `D` | Delete item under cursor or marked items (Supports **Visual Mode**) |
+| `r` | Rename item under cursor |
+| `mr` | Batch rename marked items (Supports **Visual Mode**) |
+| `d` | Create a new directory |
+
+### Bookmarks
+| Key | Action |
+| :--- | :--- |
+| `m` | Add current directory to bookmarks |
+| `b` | List and jump to a bookmark |
+| `B` | Select and remove a bookmark |
 
 ## Requirements
 

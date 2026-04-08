@@ -104,6 +104,8 @@ function M.open_under_cursor()
 	end
 
 	-- 5. Local File
+	local dir = vim.fn.fnamemodify(entry.path, ":h")
+	pcall(vim.api.nvim_set_current_dir, dir)
 	vim.cmd("edit " .. vim.fn.fnameescape(entry.path))
 end
 
