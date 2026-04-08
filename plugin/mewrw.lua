@@ -18,4 +18,3 @@ create_cmd("Mewrw", nil)
 create_cmd("MewrwV", "v")
 create_cmd("MewrwH", "h")
 create_cmd("MewrwT", "t")
-create_cmd("Explorer", "h") -- Alias for netrw compatibility
