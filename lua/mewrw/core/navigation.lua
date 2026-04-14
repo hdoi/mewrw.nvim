@@ -279,22 +279,38 @@ function M.expand_all()
 	local state = engine().get_state()
 	if not state or state.view_mode ~= "tree" then return end
 
-	local function expand_recursive(dir_uri)
-		fs.list(dir_uri, function(err, entries)
-			if err then return end
-			vim.schedule(function()
-				state.expanded_nodes[dir_uri] = entries
-				state:update()
-				require("mewrw.ui.renderer").render(state)
-				for _, e in ipairs(entries) do
-					if e.type == "directory" and not state.expanded_nodes[e.path] then
-						expand_recursive(e.path)
+	-- Get all directories that are currently visible but not yet expanded
+	local to_expand = {}
+	for _, entry in ipairs(state.filtered_entries) do
+		if entry.type == "directory" and not state.expanded_nodes[entry.path] then
+			table.insert(to_expand, entry.path)
+		end
+	end
+
+	if #to_expand == 0 then
+		return vim.notify("No more levels to expand", vim.log.levels.INFO)
+	end
+
+	local remaining = #to_expand
+	for _, path in ipairs(to_expand) do
+		fs.list(path, function(err, entries)
+			remaining = remaining - 1
+			if not err then
+				vim.schedule(function()
+					state.expanded_nodes[path] = entries
+					-- Only re-render when all parallel requests are done for efficiency
+					if remaining == 0 then
+						state:update()
+						renderer.render(state)
 					end
+				end)
+			else
+				if remaining == 0 then
+					vim.schedule(function() state:update() renderer.render(state) end)
 				end
-			end)
+			end
 		end)
 	end
-	expand_recursive(state.uri)
 end
 
 return M
