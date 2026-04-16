@@ -60,7 +60,7 @@ local comparators = {
 }
 
 function State:sort_entries(entries)
-	local res = { unpack(entries) }
+	local res = vim.list_extend({}, entries)
 	local cmp = comparators[self.sort_by] or comparators.name
 
 	table.sort(res, function(a, b)

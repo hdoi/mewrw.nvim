@@ -76,7 +76,7 @@ function M.open(uri, direction, opts)
 	opts = opts or {}
 
 	local target_uri = uri
-	if not target_uri or target_uri == "." then
+	if not target_uri then
 		local bufname = vim.api.nvim_buf_get_name(0)
 		if bufname ~= "" and vim.bo.buftype == "" then
 			target_uri = vim.fn.fnamemodify(bufname, ":p:h")

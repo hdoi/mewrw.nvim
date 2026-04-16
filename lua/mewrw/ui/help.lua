@@ -1,13 +1,43 @@
 local M = {}
 
 local content = {
-	{ "Navigation", "header" }, { "<CR>", "key", "Open" }, { "p", "key", "Preview (Right)" }, { "-", "key", "Up" }, { "R", "key", "Reload" }, { "x", "key", "OS Open" },
-	{ "View", "header" }, { "i", "key", "Mode" }, { "a", "key", "Hidden" }, { "A", "key", "Full Path" }, { "?", "key", "Filter" },
-	{ "Sort", "header" }, { "s", "key", "Criteria" }, { "S", "key", "Reverse" },
-	{ "Marks", "header" }, { "mf", "key", "Toggle Mark" }, { "mt", "key", "Clear Marks" }, { "ma", "key", "Show Marked List" }, { "TT", "key", "Set Target" }, { "Tc", "key", "Copy to Target" }, { "Tm", "key", "Move to Target" },
-	{ "Ops", "header" }, { "D", "key", "Delete (supports visual range)" }, { "r", "key", "Rename" }, { "mr", "key", "Batch Rename" }, { "d", "key", "Mkdir" },
-	{ "Tree", "header" }, { "C", "key", "Collapse All" }, { "E", "key", "Expand All" },
-	{ "Misc", "header" }, { "u", "key", "Help" }, { "q", "key", "Close" }
+	{ "Navigation", "header" },
+	{ "<CR>", "key", "Open (Enter Dir/Archive)" },
+	{ "p", "key", "Quick Preview (Right)" },
+	{ "x", "key", "Open with External App" },
+	{ "-", "key", "Up Directory" },
+	{ "R", "key", "Reload/Refresh View" },
+	{ "?", "key", "Live Filter Entries" },
+	{ "u", "key", "Show Help" },
+
+	{ "View Options", "header" },
+	{ "i", "key", "Cycle View Mode" },
+	{ "a", "key", "Toggle Hidden Files" },
+	{ "A", "key", "Toggle Full Path" },
+	{ "s", "key", "Cycle Sort Type" },
+	{ "S", "key", "Toggle Sort Reverse" },
+	{ "C", "key", "Collapse All (Tree)" },
+	{ "E", "key", "Expand All (Tree)" },
+
+	{ "Marks & Operations", "header" },
+	{ "mf", "key", "Toggle Mark (supports Visual)" },
+	{ "mt", "key", "Clear All Marks" },
+	{ "ma", "key", "Show Marked Items" },
+	{ "TT", "key", "Set Global Target" },
+	{ "Tc", "key", "Copy Marked to Target" },
+	{ "Tm", "key", "Move Marked to Target" },
+	{ "D", "key", "Delete (supports Visual)" },
+	{ "r", "key", "Rename Under Cursor" },
+	{ "mr", "key", "Batch Rename (supports Visual)" },
+	{ "d", "key", "Create New Directory" },
+
+	{ "Bookmarks", "header" },
+	{ "m", "key", "Add Current to Bookmarks" },
+	{ "b", "key", "List & Jump to Bookmark" },
+	{ "B", "key", "Remove a Bookmark" },
+
+	{ "Misc", "header" },
+	{ "q", "key", "Close Help Window" },
 }
 
 function M.show()
