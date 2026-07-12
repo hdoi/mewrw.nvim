@@ -85,7 +85,7 @@ local chain_uri = "sftp://user@host/work.zip:::zip://subfolder/file.txt"
 local chain = uri_parser.parse_chain(chain_uri)
 assert_condition(#chain == 2, "Chain parsed into 2 layers")
 assert_condition(chain[1].scheme == "sftp" and chain[1].host == "host", "Layer 1 correctly parsed as SFTP")
-assert_condition(chain[2].scheme == "zip" and chain[2].path == "/subfolder/file.txt", "Layer 2 correctly parsed as Zip internal")
+assert_condition(chain[2].scheme == "zip" and chain[2].path == "subfolder/file.txt", "Layer 2 correctly parsed as Zip internal")
 
 print("\n----------------------------------------")
 if failed == 0 then

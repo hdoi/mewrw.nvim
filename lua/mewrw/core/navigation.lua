@@ -194,8 +194,11 @@ function M.up_directory()
 	if s.uri:find(":::") then
 		local chain = uri_parser.parse_chain(s.uri)
 		local last_layer = chain[#chain]
-		
-		if last_layer.path == "" or last_layer.path == "/" then
+		-- Internal path is now stored WITHOUT a leading slash (uri.lua guarantee).
+		-- Also handle the legacy "/" value defensively.
+		local internal = last_layer.path:gsub("^/+", ""):gsub("/+$", "")
+
+		if internal == "" then
 			-- At archive root: Go back to the parent directory of the archive file
 			local parts = vim.split(s.uri, ":::", { plain = true })
 			if #parts > 1 then
@@ -203,19 +206,22 @@ function M.up_directory()
 				table.remove(parts)
 				-- The remaining chain points to the archive file itself
 				local archive_uri = table.concat(parts, ":::")
-				
+
 				-- The focus should be the normalized archive path
 				opts.focus_uri = path_utils.normalize(archive_uri)
 				-- The directory to open is the parent of that archive
 				local parent_uri = vim.fn.fnamemodify(opts.focus_uri, ":h")
-				
+
 				return engine().open(parent_uri, nil, opts)
 			end
 		else
 			-- Move up within archive
-			local parent_internal = vim.fn.fnamemodify(last_layer.path, ":h")
-			if parent_internal == "." then parent_internal = "" end
-			
+			-- Use fnamemodify on the slash-separated internal path (no leading slash)
+			local parent_internal = vim.fn.fnamemodify(internal, ":h")
+			if parent_internal == "." or parent_internal == internal then
+				parent_internal = ""
+			end
+
 			local parts = vim.split(s.uri, ":::", { plain = true })
 			parts[#parts] = last_layer.scheme .. "://" .. parent_internal
 			return engine().open(table.concat(parts, ":::"), nil, opts)

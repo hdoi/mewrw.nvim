@@ -36,9 +36,11 @@ local function parse_layer(str)
 	rest = rest or ""
 
 	-- 2. Action-only schemes (zip, tar, etc.)
+	-- Internal paths are stored WITHOUT a leading slash so callers never need
+	-- to strip it.  Backslashes (from Windows paths pasted into URIs) are
+	-- normalised to forward slashes.
 	if res.scheme == "zip" or res.scheme == "tar" or res.scheme == "7z" or res.scheme == "compress" then
-		res.path = rest:match("^/*(.*)$")
-		if not res.path:match("^/") then res.path = "/" .. res.path end
+		res.path = (rest:match("^/*(.*)$") or ""):gsub("\\", "/")
 		return res
 	end
 

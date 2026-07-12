@@ -5,9 +5,6 @@ An **experimental**, modern, asynchronous file browser and remote file transfer 
 ## Features
 
 - **Asynchronous I/O**: All filesystem operations (local and remote) use non-blocking I/O (Libuv or jobstart), ensuring the UI remains perfectly responsive even during large transfers or archive indexing.
-- **Interruptible & Timeout Safe**: 
-  - Local directory scanning is **interruptible** by pressing any key (e.g., `<C-c>`, `Esc`) during large scans.
-  - Configurable **timeout** (default 30s) for all operations to prevent UI lockup in case of slow network or unresponsive providers.
 - **Unified Interface**: Same experience across Local FS, SFTP, and Archives (`.zip`, `.tar`, `.tar.gz`, `.tgz`, `.7z`).
 - **Chained URIs**: Deeply nested navigation support using the `:::` separator (e.g., browsing a Zip file inside an SFTP server).
 - **Clean Copy-Paste (Virtual Text)**: Icons and Git status indicators are rendered using Neovim's `extmarks` (virtual text). They are visible in the UI but **do not interfere with text selection or copying**.
@@ -20,6 +17,7 @@ An **experimental**, modern, asynchronous file browser and remote file transfer 
 - **Advanced Tree View**: Visual hierarchy with recursive expansion (`E`) and navigation.
 - **Windows Friendly**: Full support for drive letters (e.g., `C:/`), network shares, and a virtual "This PC" root (`/`) to switch between drives.
 - **Persistent Bookmarks**: Quickly save and recall locations via a persistent selection menu.
+- **Batch Rename**: Integrated buffer-based batch renaming for multiple files or marked items.
 
 ## Screenshots
 
@@ -54,7 +52,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
             icons = "emoji",            -- "none", "emoji", or "devicons"
             git_integration = true,      -- Enable git status and branch info
             default_view_mode = "list",  -- "list", "detailed", or "tree"
-            timeout = 30000,             -- Operation timeout in ms (default: 30s)
             debug = false,               -- Set to true to see verbose logs
         })
     end
@@ -70,11 +67,8 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 | `:Mewrw [uri]` | Open explorer in the current window |
 | `:MewrwV [uri]` | Open in a vertical split |
 | `:MewrwH [uri]` | Open in a horizontal split |
-- **Persistent Bookmarks**: Quickly save and recall locations via a persistent selection menu.
-- **Batch Rename**: Integrated buffer-based batch renaming for multiple files or marked items.
+| `:MewrwT [uri]` | Open in a new tab |
 
-## Screenshots
-...
 ### URI Specification (Chaining)
 
 `mewrw` uses `:::` to chain multiple actions or layers.
