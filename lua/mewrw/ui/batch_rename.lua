@@ -83,6 +83,29 @@ function M.apply(bufnr)
 							marks[item.old_path] = nil
 							marks[new_path] = true
 						end
+
+						local s = engine.get_state()
+						if s and s.expanded_nodes then
+							local old_p, new_p = item.old_path, new_path
+							if s.expanded_nodes[old_p] then
+								s.expanded_nodes[new_p] = s.expanded_nodes[old_p]
+								s.expanded_nodes[old_p] = nil
+							end
+							if s.expanded_nodes[old_p .. "/"] then
+								s.expanded_nodes[new_p .. "/"] = s.expanded_nodes[old_p .. "/"]
+								s.expanded_nodes[old_p .. "/"] = nil
+							end
+
+							for _, entries in pairs(s.expanded_nodes) do
+								for _, entry in ipairs(entries) do
+									if entry.path == old_p or entry.path == old_p .. "/" then
+										entry.path = new_p
+										entry.name = new_name
+										break
+									end
+								end
+							end
+						end
 					else
 						vim.notify("Error renaming " .. item.old_name .. ": " .. err, vim.log.levels.ERROR)
 					end
@@ -92,7 +115,21 @@ function M.apply(bufnr)
 						vim.api.nvim_buf_delete(bufnr, { force = true })
 						if original_bufnr and vim.api.nvim_buf_is_valid(original_bufnr) then
 							vim.api.nvim_set_current_buf(original_bufnr)
-							require("mewrw.core.engine").open()
+							local engine = require("mewrw.core.engine")
+							local s = engine.get_state()
+							if s then
+								engine.open(s.uri, nil, {
+									view_mode = s.view_mode,
+									show_hidden = s.show_hidden,
+									show_full_path = s.show_full_path,
+									sort_by = s.sort_by,
+									sort_reverse = s.sort_reverse,
+									filter = s.filter,
+									expanded_nodes = s.expanded_nodes,
+								})
+							else
+								engine.open()
+							end
 						end
 					end
 				end)
